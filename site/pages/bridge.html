@@ -31,7 +31,7 @@ cursor-agent login</code></pre>
     <strong>Start it:</strong>
 <pre><code>node chromind-bridge.mjs</code></pre>
     It prints a <strong>token</strong> and which CLIs it found:
-<pre><code>  ChroMind Bridge 0.1.0 on http://127.0.0.1:8765
+<pre><code>  ChroMind Bridge 0.2.0 on http://127.0.0.1:8765
 
   Token: 3fQx…(32 characters)
   Paste it in ChroMind → Settings → Bridge.
@@ -87,8 +87,17 @@ cursor-agent login</code></pre>
   <thead><tr><th>Endpoint</th><th>Returns</th></tr></thead>
   <tbody>
     <tr><td><code>GET /health</code></td><td>Public liveness check</td></tr>
-    <tr><td><code>GET /v1/status</code></td><td>CLIs, versions, sign-in state, models</td></tr>
-    <tr><td><code>GET /v1/models</code></td><td><code>claude-code/sonnet</code>, <code>cursor/auto</code>, …</td></tr>
-    <tr><td><code>POST /v1/chat/completions</code></td><td>Streaming (SSE) or plain JSON. Thinking arrives as <code>reasoning_content</code>, tool use as <code>event: chromind.tool</code>.</td></tr>
+    <tr><td><code>GET /v1/status</code></td><td>CLIs, versions, sign-in state, models; active Hermes SSH tunnel if any</td></tr>
+    <tr><td><code>GET /v1/models</code></td><td><code>claude-code/sonnet</code>, <code>cursor/auto</code>, <code>hermes/…</code>, …</td></tr>
+    <tr><td><code>POST /v1/server/test</code></td><td>SSH to <code>you@host</code>, open a tunnel to Hermes' API, return models</td></tr>
+    <tr><td><code>POST /v1/chat/completions</code></td><td>Streaming (SSE) or plain JSON. Thinking arrives as <code>reasoning_content</code>, tool use as <code>event: chromind.tool</code> (or Hermes' own tool events when model is <code>hermes/…</code>).</td></tr>
   </tbody>
 </table>
+
+<h2>Hermes on your server</h2>
+<p>
+  The same <code>you@ip</code> + password login as TileSmith and DailyDash. ChroMind sends
+  <code>X-ChroMind-Server</code> and <code>X-ChroMind-Server-Password</code>; the Bridge runs OpenSSH, forwards
+  <code>127.0.0.1:8642</code> from the server, reads <code>API_SERVER_KEY</code> from <code>~/.hermes/.env</code>, and
+  proxies the chat. See <a href="{{root}}docs/hermes/">Connect Hermes</a>.
+</p>

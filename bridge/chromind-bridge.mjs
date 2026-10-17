@@ -14,8 +14,15 @@
  *   GET  /health                public, { ok, name, version }
  *   GET  /v1/status             CLIs found, versions, sign-in state, models
  *   GET  /v1/models
- *   POST /v1/chat/completions   model "claude-code/<model>" or "cursor/<model>",
- *                               streaming (SSE) or not
+ *   POST /v1/server/test        SSH to user@host, tunnel to Hermes API, list models
+ *   POST /v1/chat/completions   model "claude-code/<model>", "cursor/<model>",
+ *                               or "hermes/<model>" (SSH tunnel; see headers below)
+ *
+ * Hermes over SSH (same login as TileSmith / DailyDash): the extension sends
+ * X-ChroMind-Server (you@host), X-ChroMind-Server-Password, and optional
+ * X-ChroMind-Api-Port (default 8642). The Bridge opens a local tunnel to the
+ * server's Hermes API (127.0.0.1:8642), reads API_SERVER_KEY from
+ * ~/.hermes/.env when needed, and proxies the chat stream.
  *
  * Every /v1 call needs "Authorization: Bearer <token>". The token lives in
  * ~/.chromind/bridge.json. Requests from web pages are refused (their
@@ -32,11 +39,12 @@ import { spawn, spawnSync } from 'node:child_process'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
+import { createServer as createNetServer, connect as netConnect } from 'node:net'
 import { homedir, platform, tmpdir } from 'node:os'
 import { delimiter, dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const VERSION = '0.1.0'
+const VERSION = '0.2.0'
 const CONFIG_DIR = join(homedir(), '.chromind')
 const CONFIG = join(CONFIG_DIR, 'bridge.json')
 const IS_WIN = platform() === 'win32'
@@ -305,8 +313,10 @@ function runChat(model, messages, on, signal) {
       positional,
     ]
     parse = cursorParser(on)
+  } else if (provider === 'hermes') {
+    return Promise.reject(httpError(400, 'Hermes chat is handled by the HTTP proxy, not the CLI runner.'))
   } else {
-    return Promise.reject(httpError(404, `Unknown model ${model}. Use claude-code/<model> or cursor/<model>.`))
+    return Promise.reject(httpError(404, `Unknown model ${model}. Use claude-code/<model>, cursor/<model> or hermes/<model>.`))
   }
 
   if (cli.shell && provider === 'cursor') {
@@ -470,6 +480,398 @@ function cursorParser(on) {
   }
 }
 
+/* ---------- Hermes over SSH (user@host + password) ---------- */
+
+/**
+ * Parses you@host[:port], matching extension/lib/server-address.js (SSH only).
+ * Kept inline so this file stays a single downloadable unit.
+ */
+function parseSshTarget(raw) {
+  let text = String(raw ?? '').trim()
+  if (!text) return { error: 'Enter an address like you@your-server.' }
+  if (text.toLowerCase().startsWith('ssh ')) text = text.slice(4).trim()
+  if (text.toLowerCase().startsWith('ssh://')) text = text.slice(6).replace(/\/+$/, '')
+
+  let port = null
+  const portFlag = /(?:^|\s)-p\s*(\d+)\b/.exec(text)
+  if (portFlag) {
+    port = Number(portFlag[1])
+    text = (text.slice(0, portFlag.index) + text.slice(portFlag.index + portFlag[0].length)).trim()
+  }
+
+  const at = text.lastIndexOf('@')
+  if (at <= 0) return { error: 'Add a user name, like you@hostname.' }
+  const user = text.slice(0, at).trim()
+  let hostPart = text.slice(at + 1).trim()
+  if (!user) return { error: 'Add a user name, like you@hostname.' }
+  if (!/^[A-Za-z0-9._-]+$/.test(user)) return { error: 'That user name has characters SSH will not accept.' }
+
+  let host
+  if (hostPart.startsWith('[')) {
+    const close = hostPart.indexOf(']')
+    if (close < 1) return { error: 'Missing ] in IPv6 address.' }
+    host = hostPart.slice(1, close)
+    const rest = hostPart.slice(close + 1)
+    if (rest.startsWith(':')) port = Number(rest.slice(1))
+  } else if ((hostPart.match(/:/g) || []).length === 1) {
+    const [h, p] = hostPart.split(':')
+    host = h
+    port = Number(p)
+  } else {
+    host = hostPart
+  }
+  host = (host || '').trim().replace(/\.$/, '')
+  if (!host || /\s/.test(host)) return { error: 'That does not look like a hostname or IP address.' }
+  port = port ?? 22
+  if (!Number.isInteger(port) || port < 1 || port > 65535) return { error: 'Port must be between 1 and 65535.' }
+  const display = `${user}@${host.includes(':') ? `[${host}]` : host}${port === 22 ? '' : ':' + port}`
+  return { user, host, port, display }
+}
+
+function freeLocalPort() {
+  return new Promise((resolvePort, reject) => {
+    const server = createNetServer()
+    server.listen(0, '127.0.0.1', () => {
+      const { port } = server.address()
+      server.close((err) => (err ? reject(err) : resolvePort(port)))
+    })
+    server.on('error', reject)
+  })
+}
+
+function waitForLocalPort(port, timeoutMs = 12_000) {
+  const start = Date.now()
+  return new Promise((resolveReady, reject) => {
+    const tryOnce = () => {
+      const socket = netConnect({ host: '127.0.0.1', port }, () => {
+        socket.end()
+        resolveReady()
+      })
+      socket.on('error', () => {
+        socket.destroy()
+        if (Date.now() - start > timeoutMs) reject(new Error('SSH tunnel did not open in time.'))
+        else setTimeout(tryOnce, 150)
+      })
+    }
+    tryOnce()
+  })
+}
+
+function writeAskPass(password) {
+  mkdirSync(CONFIG_DIR, { recursive: true })
+  if (IS_WIN) {
+    const path = join(CONFIG_DIR, `askpass-${randomBytes(6).toString('hex')}.cmd`)
+    // cmd echo: caret-escape specials; keep the password on one line.
+    const escaped = String(password).replace(/([&<>|^])/g, '^$1')
+    writeFileSync(path, `@echo off\r\necho ${escaped}\r\n`, { mode: 0o600 })
+    return path
+  }
+  const path = join(CONFIG_DIR, `askpass-${randomBytes(6).toString('hex')}.sh`)
+  writeFileSync(path, `#!/bin/sh\nprintf '%s\\n' ${JSON.stringify(String(password))}\n`, { mode: 0o700 })
+  return path
+}
+
+/** Active SSH tunnels keyed by "user@host:sshPort→apiPort". */
+const tunnels = new Map()
+
+function tunnelKey(target, apiPort) {
+  return `${target.user}@${target.host}:${target.port}->${apiPort}`
+}
+
+function stopTunnel(entry) {
+  try {
+    entry.child?.kill('SIGTERM')
+  } catch {
+    // already gone
+  }
+  if (entry.askpass) {
+    try {
+      rmSync(entry.askpass, { force: true })
+    } catch {
+      // ignore
+    }
+  }
+}
+
+async function ensureHermesTunnel({ address, password, apiPort = 8642 }) {
+  const target = parseSshTarget(address)
+  if (target.error) throw httpError(400, target.error)
+  if (!password) throw httpError(400, 'Enter the SSH password for the server.')
+
+  const key = tunnelKey(target, apiPort)
+  const existing = tunnels.get(key)
+  if (existing?.ready && existing.child && !existing.child.killed) {
+    existing.password = password
+    return existing
+  }
+  if (existing) {
+    stopTunnel(existing)
+    tunnels.delete(key)
+  }
+
+  const whichSsh = which(['ssh']) || (IS_WIN ? which(['ssh.exe']) : null)
+  if (!whichSsh) {
+    throw httpError(503, 'OpenSSH client (`ssh`) not found. Install it, then try again.')
+  }
+
+  const localPort = await freeLocalPort()
+  const askpass = writeAskPass(password)
+  const controlPath = join(CONFIG_DIR, `ssh-${randomBytes(8).toString('hex')}.sock`)
+  const args = [
+    '-N',
+    '-L',
+    `${localPort}:127.0.0.1:${apiPort}`,
+    '-o',
+    'BatchMode=no',
+    '-o',
+    'StrictHostKeyChecking=accept-new',
+    '-o',
+    'ExitOnForwardFailure=yes',
+    '-o',
+    'ServerAliveInterval=30',
+    '-o',
+    'ServerAliveCountMax=3',
+    '-o',
+    `ControlPath=${controlPath}`,
+    '-p',
+    String(target.port),
+    `${target.user}@${target.host}`,
+  ]
+
+  const child = spawn(whichSsh, args, {
+    windowsHide: true,
+    env: {
+      ...process.env,
+      SSH_ASKPASS: askpass,
+      SSH_ASKPASS_REQUIRE: 'force',
+      // ssh requires DISPLAY (or equivalent) before it will run askpass
+      DISPLAY: process.env.DISPLAY || process.env.WAYLAND_DISPLAY || ':0',
+      SSH_AUTH_SOCK: '', // prefer the typed password over a stuck agent
+    },
+    stdio: ['ignore', 'ignore', 'pipe'],
+  })
+
+  let stderr = ''
+  child.stderr.setEncoding('utf8')
+  child.stderr.on('data', (chunk) => {
+    stderr += chunk
+    if (stderr.length > 4000) stderr = stderr.slice(-4000)
+  })
+
+  const entry = {
+    key,
+    target,
+    apiPort,
+    localPort,
+    password,
+    apiKey: '',
+    models: ['hermes-agent'],
+    child,
+    askpass,
+    controlPath,
+    ready: false,
+  }
+  tunnels.set(key, entry)
+
+  const failed = await Promise.race([
+    waitForLocalPort(localPort).then(() => null),
+    new Promise((resolveFail) => {
+      child.on('exit', (code) => {
+        const detail = stderr.trim().split('\n').slice(-2).join(' ') || `ssh exited ${code}`
+        let message = `Couldn't SSH to ${target.display}: ${detail}`
+        if (/permission denied|authentication failed/i.test(detail)) {
+          message = `Wrong user name or password for ${target.display}.`
+        } else if (/connection refused|timed out|no route/i.test(detail)) {
+          message = `Couldn't reach ${target.host} on port ${target.port}. Is the server up (and on Tailscale)?`
+        }
+        resolveFail(httpError(502, message))
+      })
+      child.on('error', (err) => resolveFail(httpError(500, `Could not start ssh: ${err.message}`)))
+    }),
+  ])
+
+  if (failed) {
+    stopTunnel(entry)
+    tunnels.delete(key)
+    throw failed
+  }
+
+  entry.ready = true
+  child.on('exit', () => {
+    if (tunnels.get(key) === entry) tunnels.delete(key)
+    stopTunnel(entry)
+  })
+
+  entry.apiKey = await readRemoteHermesKey(entry).catch(() => '')
+  entry.models = await listHermesModelsViaTunnel(entry).catch(() => ['hermes-agent'])
+  return entry
+}
+
+/** One-shot ssh using the same askpass, to read ~/.hermes/.env on the server. */
+function sshExec(target, password, remoteCommand, { timeout = 20_000 } = {}) {
+  const whichSsh = which(['ssh']) || (IS_WIN ? which(['ssh.exe']) : null)
+  if (!whichSsh) return Promise.reject(httpError(503, 'OpenSSH client (`ssh`) not found.'))
+  const askpass = writeAskPass(password)
+  return new Promise((done, reject) => {
+    const child = spawn(
+      whichSsh,
+      [
+        '-o',
+        'BatchMode=no',
+        '-o',
+        'StrictHostKeyChecking=accept-new',
+        '-o',
+        'ServerAliveInterval=15',
+        '-p',
+        String(target.port),
+        `${target.user}@${target.host}`,
+        remoteCommand,
+      ],
+      {
+        windowsHide: true,
+        env: {
+          ...process.env,
+          SSH_ASKPASS: askpass,
+          SSH_ASKPASS_REQUIRE: 'force',
+          DISPLAY: process.env.DISPLAY || process.env.WAYLAND_DISPLAY || ':0',
+          SSH_AUTH_SOCK: '',
+        },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      },
+    )
+    let out = ''
+    let err = ''
+    child.stdout.setEncoding('utf8')
+    child.stderr.setEncoding('utf8')
+    child.stdout.on('data', (d) => (out += d))
+    child.stderr.on('data', (d) => (err += d))
+    const timer = setTimeout(() => {
+      child.kill()
+      rmSync(askpass, { force: true })
+      reject(httpError(504, 'SSH command timed out.'))
+    }, timeout)
+    child.on('close', (code) => {
+      clearTimeout(timer)
+      rmSync(askpass, { force: true })
+      if (code !== 0) {
+        reject(httpError(502, err.trim().split('\n').slice(-2).join(' ') || `ssh exited ${code}`))
+      } else done(out.trim())
+    })
+    child.on('error', (e) => {
+      clearTimeout(timer)
+      rmSync(askpass, { force: true })
+      reject(httpError(500, e.message))
+    })
+  })
+}
+
+async function readRemoteHermesKey(entry) {
+  const script =
+    'set -e; f="$HOME/.hermes/.env"; [ -f "$f" ] || exit 0; ' +
+    'grep -E "^API_SERVER_KEY=" "$f" | tail -n1 | cut -d= -f2- | tr -d "\\r\\"\'"'
+  const key = await sshExec(entry.target, entry.password, script)
+  return key.trim()
+}
+
+async function listHermesModelsViaTunnel(entry) {
+  const headers = entry.apiKey ? { authorization: `Bearer ${entry.apiKey}` } : {}
+  const res = await fetch(`http://127.0.0.1:${entry.localPort}/v1/models`, { headers })
+  if (!res.ok) {
+    if (res.status === 401 || res.status === 403) {
+      throw httpError(502, 'Hermes rejected the API key. Check API_SERVER_KEY in ~/.hermes/.env on the server.')
+    }
+    throw httpError(502, `Hermes on the server answered ${res.status}. Is \`hermes gateway\` running?`)
+  }
+  const json = await res.json()
+  const models = (json.data ?? json.models ?? []).map((m) => (typeof m === 'string' ? m : m.id)).filter(Boolean)
+  return models.length ? models : ['hermes-agent']
+}
+
+async function testHermesServer({ address, password, apiPort = 8642 }) {
+  const entry = await ensureHermesTunnel({ address, password, apiPort })
+  return {
+    ok: true,
+    display: entry.target.display,
+    apiPort: entry.apiPort,
+    models: entry.models,
+    hasApiKey: Boolean(entry.apiKey),
+  }
+}
+
+/**
+ * Proxies an OpenAI chat completion to Hermes through the SSH tunnel.
+ * Preserves SSE (including hermes.tool.* events).
+ */
+async function proxyHermesChat(req, res, body, { address, password, apiPort, profile, sessionKey }) {
+  const entry = await ensureHermesTunnel({ address, password, apiPort })
+  if (!entry.apiKey) {
+    throw httpError(
+      502,
+      'Hermes is reachable but has no API_SERVER_KEY in ~/.hermes/.env on the server. Add one and restart `hermes gateway`.',
+    )
+  }
+
+  const model = String(body.model || 'hermes/hermes-agent').replace(/^hermes\//, '') || 'hermes-agent'
+  let path = '/v1/chat/completions'
+  if (profile) path = `/p/${encodeURIComponent(profile)}/v1/chat/completions`
+  const url = `http://127.0.0.1:${entry.localPort}${path}`
+
+  const headers = {
+    'content-type': 'application/json',
+    accept: body.stream === false ? 'application/json' : 'text/event-stream',
+    authorization: `Bearer ${entry.apiKey}`,
+  }
+  if (sessionKey) headers['x-hermes-session-key'] = sessionKey
+
+  const upstream = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ ...body, model, stream: body.stream !== false }),
+  }).catch((err) => {
+    throw httpError(502, `Tunnel to Hermes failed: ${err.message}. Is \`hermes gateway\` running on the server?`)
+  })
+
+  if (!upstream.ok) {
+    const text = await upstream.text().catch(() => '')
+    let message = text.slice(0, 300)
+    try {
+      message = JSON.parse(text)?.error?.message || message
+    } catch {
+      // keep text
+    }
+    throw httpError(upstream.status === 401 ? 502 : upstream.status, message || `Hermes answered ${upstream.status}`)
+  }
+
+  const type = upstream.headers.get('content-type') || ''
+  if (!type.includes('event-stream') || body.stream === false) {
+    const json = await upstream.json()
+    return send(res, 200, json)
+  }
+
+  res.writeHead(200, {
+    'content-type': 'text/event-stream; charset=utf-8',
+    'cache-control': 'no-cache',
+    connection: 'keep-alive',
+    ...cors(req),
+  })
+
+  const reader = upstream.body.getReader()
+  const decoder = new TextDecoder()
+  req.on('close', () => {
+    try {
+      reader.cancel()
+    } catch {
+      // ignore
+    }
+  })
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    res.write(decoder.decode(value, { stream: true }))
+  }
+  res.end()
+}
+
 /* ---------- HTTP ---------- */
 
 function httpError(status, message) {
@@ -486,7 +888,8 @@ function cors(req) {
   return /^(chrome|moz)-extension:\/\//.test(origin)
     ? {
         'access-control-allow-origin': origin,
-        'access-control-allow-headers': 'authorization, content-type',
+        'access-control-allow-headers':
+          'authorization, content-type, x-hermes-session-key, x-chromind-server, x-chromind-server-password, x-chromind-api-port, x-chromind-hermes-profile',
         'access-control-allow-methods': 'GET, POST, OPTIONS',
         vary: 'origin',
       }
@@ -540,7 +943,20 @@ async function handle(req, res) {
   if (!authorized(req)) return send(res, 401, { error: { message: 'Missing or wrong bridge token.' } })
 
   if (req.method === 'GET' && url.pathname === '/v1/status') {
-    return send(res, 200, { ok: true, version: VERSION, providers: await cliStatus() })
+    const server = [...tunnels.values()]
+      .filter((t) => t.ready)
+      .map((t) => ({
+        display: t.target.display,
+        apiPort: t.apiPort,
+        models: t.models,
+        hasApiKey: Boolean(t.apiKey),
+      }))[0]
+    return send(res, 200, {
+      ok: true,
+      version: VERSION,
+      providers: await cliStatus(),
+      server: server ?? null,
+    })
   }
   if (req.method === 'GET' && url.pathname === '/v1/models') {
     const status = await cliStatus()
@@ -548,12 +964,31 @@ async function handle(req, res) {
     for (const [id, p] of Object.entries(status)) {
       if (p.installed) for (const m of p.models) data.push({ id: `${id}/${m}`, object: 'model', owned_by: id })
     }
+    for (const t of tunnels.values()) {
+      if (!t.ready) continue
+      for (const m of t.models) data.push({ id: `hermes/${m}`, object: 'model', owned_by: 'hermes' })
+    }
     return send(res, 200, { object: 'list', data })
+  }
+  if (req.method === 'POST' && url.pathname === '/v1/server/test') {
+    const body = await readBody(req)
+    return send(res, 200, await testHermesServer(body))
   }
   if (req.method === 'POST' && url.pathname === '/v1/chat/completions') {
     const body = await readBody(req)
     if (!Array.isArray(body.messages) || !body.messages.length) throw httpError(400, 'messages is required')
     const model = String(body.model || 'claude-code/sonnet')
+
+    if (model.startsWith('hermes/') || model === 'hermes') {
+      const address = req.headers['x-chromind-server'] || body.server?.address
+      const password = req.headers['x-chromind-server-password'] || body.server?.password
+      const apiPort = Number(req.headers['x-chromind-api-port'] || body.server?.apiPort || 8642)
+      const profile = req.headers['x-chromind-hermes-profile'] || body.server?.profile || ''
+      const sessionKey = req.headers['x-hermes-session-key'] || ''
+      if (!address) throw httpError(400, 'Missing X-ChroMind-Server (you@host).')
+      return proxyHermesChat(req, res, body, { address, password, apiPort, profile, sessionKey })
+    }
+
     const id = `chatcmpl-${randomUUID()}`
     const created = Math.floor(Date.now() / 1000)
     const controller = new AbortController()
@@ -722,4 +1157,4 @@ if (isMain) {
   } else serve()
 }
 
-export { claudeParser, cursorParser, flatten }
+export { claudeParser, cursorParser, flatten, parseSshTarget }

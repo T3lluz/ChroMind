@@ -24,7 +24,7 @@ const NOTES = {
   cursor:
     'Runs the Cursor CLI (cursor-agent) through ChroMind Bridge, signed in with your Cursor account, in read-only ask mode.',
   hermes:
-    'Turn on the Hermes API server in ~/.hermes/.env (API_SERVER_ENABLED=true, API_SERVER_KEY=…) and run `hermes gateway`. Hermes keeps its tools, and page text is untrusted, so give ChroMind a profile with only the tools you want it to have.',
+    'Same login as TileSmith and DailyDash: `you@your-server` and the SSH password. ChroMind Bridge opens a tunnel to Hermes on that machine (API on localhost:8642). For Hermes on this PC, use `http://127.0.0.1:8642` and put API_SERVER_KEY in Password instead. Page text is untrusted — prefer a browsing profile with limited tools.',
   custom:
     'Any /v1/chat/completions server: Ollama (http://127.0.0.1:11434), LM Studio (http://127.0.0.1:1234), OpenRouter (https://openrouter.ai/api).',
 }
@@ -39,8 +39,8 @@ const FIELDS = {
   ],
   cursor: [{ key: 'model', label: 'Model', type: 'text', placeholder: 'auto', list: true }],
   hermes: [
-    { key: 'baseUrl', label: 'Server URL', type: 'text', mono: true, placeholder: 'http://127.0.0.1:8642' },
-    { key: 'apiKey', label: 'API key (API_SERVER_KEY)', type: 'password', mono: true },
+    { key: 'address', label: 'Address', type: 'text', mono: true, placeholder: 'you@100.x.y.z or http://127.0.0.1:8642' },
+    { key: 'password', label: 'Password', type: 'password', mono: true, placeholder: 'SSH password (or API key for a URL)' },
     { key: 'model', label: 'Model', type: 'text', placeholder: 'hermes-agent', list: true },
     { key: 'profile', label: 'Profile (optional)', type: 'text', placeholder: 'browser' },
     { key: 'sessionKey', label: 'Memory key', type: 'text', placeholder: 'chromind' },

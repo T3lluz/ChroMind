@@ -11,7 +11,9 @@ export const DEFAULTS = {
     'claude-web': { model: '', keepHistory: true },
     'claude-code': { model: 'sonnet' },
     cursor: { model: 'auto' },
-    hermes: { baseUrl: 'http://127.0.0.1:8642', apiKey: '', model: 'hermes-agent', profile: '', sessionKey: 'chromind' },
+    // address: user@host (SSH via Bridge) or http://127.0.0.1:8642 (direct).
+    // password: SSH password, or the Hermes API_SERVER_KEY for a direct URL.
+    hermes: { address: '', password: '', model: 'hermes-agent', profile: '', sessionKey: 'chromind', apiPort: 8642 },
     custom: { name: 'Custom', baseUrl: 'http://127.0.0.1:11434', apiKey: '', model: '' },
   },
   bridge: { url: 'http://127.0.0.1:8765', token: '' },
@@ -38,11 +40,28 @@ export const DEFAULTS = {
 
 const KEY = 'settings'
 
+/** 0.1 stored hermes.baseUrl + apiKey; 0.2 uses address + password like TileSmith. */
+function migrateHermes(cfg = {}) {
+  const next = { ...cfg }
+  if (!next.address && next.baseUrl) {
+    next.address = next.baseUrl
+    delete next.baseUrl
+  }
+  if (!next.password && next.apiKey) {
+    next.password = next.apiKey
+    delete next.apiKey
+  }
+  delete next.baseUrl
+  delete next.apiKey
+  return next
+}
+
 function merge(stored = {}) {
   const out = { ...DEFAULTS, ...stored }
   out.providers = { ...DEFAULTS.providers }
   for (const [id, value] of Object.entries(stored.providers ?? {})) {
-    out.providers[id] = { ...(DEFAULTS.providers[id] ?? {}), ...value }
+    const merged = { ...(DEFAULTS.providers[id] ?? {}), ...value }
+    out.providers[id] = id === 'hermes' ? migrateHermes(merged) : merged
   }
   out.bridge = { ...DEFAULTS.bridge, ...(stored.bridge ?? {}) }
   if (!Array.isArray(out.customActions)) out.customActions = DEFAULTS.customActions
@@ -65,6 +84,7 @@ export async function saveSettings(patch) {
       next.providers[id] = { ...(stored.providers?.[id] ?? {}), ...value }
     }
   }
+  if (next.providers?.hermes) next.providers.hermes = migrateHermes(next.providers.hermes)
   if (patch.bridge) next.bridge = { ...(stored.bridge ?? {}), ...patch.bridge }
   await api.storage.local.set({ [KEY]: next })
   return merge(next)
