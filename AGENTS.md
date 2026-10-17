@@ -11,6 +11,7 @@
 | `extension/sidepanel/` | The panel UI. Chats run here, not in the background (MV3 service workers die). `?mode=tab` = full-page chat, `?window=<id>` = follow another window. |
 | `extension/options/` | Settings page. Auto-saves (debounced, merged patches). |
 | `extension/content/selection.js` | Selection toolbar + answer card in a **closed** shadow root. Classic script (content scripts can't be modules). |
+| `extension/content/site.js` | Docs site only: sets `data-chromind-version` on `<html>` so the install page shows "installed" / "update available" (`site/assets/site.js`). Exposes nothing else. Match patterns have no port (Firefox ignores them). |
 | `extension/lib/providers/` | `claude-web.js` (claude.ai session API), `openai.js` (Hermes, Bridge, custom), `index.js` (registry, `runChat`, `testProvider`). |
 | `extension/lib/extract.js` | Page text (Readability), YouTube transcript (opens/reads/closes the transcript panel), links, screenshots. In-page functions must be self-contained. |
 | `extension/lib/markdown.js` | Safe renderer: escapes everything, no raw HTML, **no images** (prevents exfiltration via image URLs). Classic script → `globalThis.CMMarkdown`. |

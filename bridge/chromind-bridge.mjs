@@ -36,7 +36,7 @@ import { homedir, platform, tmpdir } from 'node:os'
 import { delimiter, dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const VERSION = '0.1.0'
+const VERSION = '0.1.1'
 const CONFIG_DIR = join(homedir(), '.chromind')
 const CONFIG = join(CONFIG_DIR, 'bridge.json')
 const IS_WIN = platform() === 'win32'

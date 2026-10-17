@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "ChroMind",
   "short_name": "ChroMind",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "AI side panel for any page. Ask, summarize and explain with your Claude and Cursor logins, or your own Hermes Agent server.",
   "minimum_chrome_version": "116",
   "icons": {
@@ -20,7 +20,9 @@
     "activeTab",
     "declarativeNetRequestWithHostAccess"
   ],
-  "host_permissions": ["<all_urls>"],
+  "host_permissions": [
+    "<all_urls>"
+  ],
   "background": {
     "service_worker": "background.js",
     "type": "module"
@@ -68,9 +70,26 @@
   },
   "content_scripts": [
     {
-      "matches": ["http://*/*", "https://*/*"],
-      "js": ["lib/markdown.js", "content/selection.js"],
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "lib/markdown.js",
+        "content/selection.js"
+      ],
       "run_at": "document_idle",
+      "all_frames": false
+    },
+    {
+      "matches": [
+        "https://t3lluz.github.io/ChroMind/*",
+        "http://localhost/ChroMind/*"
+      ],
+      "js": [
+        "content/site.js"
+      ],
+      "run_at": "document_start",
       "all_frames": false
     }
   ]

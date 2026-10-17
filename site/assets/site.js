@@ -91,24 +91,80 @@
       .then((r) => (r.ok ? r.json() : null))
       .catch(() => null)
 
+  // Set by the extension's content script (extension/content/site.js) when
+  // ChroMind is installed in this browser.
+  const installed = document.documentElement.dataset.chromindVersion || ''
+
   Promise.all([getJSON('chromind-firefox.json'), getJSON('chromind-chrome.json')]).then(([firefox, chrome]) => {
+    let firefoxHref = null
+    let chromeHref = null
     if (firefox) {
       const v = `?v=${encodeURIComponent(firefox.version)}`
       const signed = firefox.xpi ? `${root}${firefox.xpi}${v}` : null
       const unsigned = `${root}${firefox.unsigned}${v}`
-      document.querySelectorAll('[data-firefox-install]').forEach((a) => (a.href = signed ?? unsigned))
+      firefoxHref = signed ?? unsigned
+      document.querySelectorAll('[data-firefox-install]').forEach((a) => (a.href = firefoxHref))
       document.querySelectorAll('[data-firefox-unsigned]').forEach((a) => (a.href = unsigned))
       document.querySelectorAll('[data-firefox-signed-only]').forEach((el) => (el.hidden = !signed))
       document.querySelectorAll('[data-firefox-unsigned-note]').forEach((el) => (el.hidden = !!signed))
       document.querySelectorAll('[data-version="firefox"]').forEach((el) => (el.textContent = `v${firefox.version}`))
     }
     if (chrome) {
-      document
-        .querySelectorAll('[data-chrome-zip]')
-        .forEach((a) => (a.href = `${root}${chrome.zip}?v=${encodeURIComponent(chrome.version + '-' + chrome.fingerprint.slice(0, 10))}`))
+      chromeHref = `${root}${chrome.zip}?v=${encodeURIComponent(chrome.version + '-' + chrome.fingerprint.slice(0, 10))}`
+      document.querySelectorAll('[data-chrome-zip]').forEach((a) => (a.href = chromeHref))
       document.querySelectorAll('[data-version="chrome"]').forEach((el) => (el.textContent = `v${chrome.version}`))
     }
+    if (installed) {
+      const latest = browser === 'firefox' ? firefox : chrome
+      const href = browser === 'firefox' ? firefoxHref : chromeHref
+      document.querySelectorAll('[data-install-status]').forEach((box) =>
+        showInstallStatus(box, latest && newer(latest.version, installed) ? { version: latest.version, href, signed: !!firefox?.xpi } : null),
+      )
+    }
   })
+
+  /** True when version A is newer than B (x.y.z). */
+  function newer(a, b) {
+    const pa = String(a).split('.').map(Number)
+    const pb = String(b).split('.').map(Number)
+    for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+      const d = (pa[i] || 0) - (pb[i] || 0)
+      if (d) return d > 0
+    }
+    return false
+  }
+
+  /** "Installed" or, with UPDATE, "Update available" plus its download. */
+  function showInstallStatus(box, update) {
+    const title = document.createElement('strong')
+    const note = document.createElement('small')
+    const copy = document.createElement('div')
+    copy.className = 'status-copy'
+    copy.append(title, note)
+    box.replaceChildren(copy)
+    box.classList.toggle('update', !!update)
+    if (!update) {
+      title.textContent = `ChroMind v${installed} is installed in this browser.`
+      note.textContent = "You're up to date. Open it with Alt+Shift+A or the toolbar button."
+    } else {
+      title.textContent = `Update available: v${update.version}`
+      note.textContent =
+        browser === 'firefox'
+          ? update.signed
+            ? `You have v${installed}. Firefox installs it on its own within a day; to get it now, install it over this one.`
+            : `You have v${installed}. Load the new build the same way you loaded this one.`
+          : `You have v${installed}. Unzip it over the same folder, then press the reload arrow on ChroMind's card in chrome://extensions.`
+      if (update.href) {
+        const a = document.createElement('a')
+        a.className = 'btn primary'
+        a.href = update.href
+        if (browser !== 'firefox') a.download = ''
+        a.textContent = browser === 'firefox' ? `Install v${update.version}` : `Download v${update.version}`
+        box.append(a)
+      }
+    }
+    box.hidden = false
+  }
 
   // The landing page's main button follows the visitor's browser.
   document.querySelectorAll('[data-primary-cta]').forEach((a) => {
