@@ -12,8 +12,9 @@ node chromind-bridge.mjs uninstall
 
 Sign the CLIs in first: `claude auth login`, `cursor-agent login`.
 
-- OpenAI-compatible API on `127.0.0.1:8765`: `/v1/chat/completions` (streaming), `/v1/models`, `/v1/status`, `/health`.
-- Models: `claude-code/<sonnet|opus|haiku|fable>`, `cursor/<auto|any model cursor-agent lists>`.
+- OpenAI-compatible API on `127.0.0.1:8765`: `/v1/chat/completions` (streaming), `/v1/models`, `/v1/status`, `/v1/server/test`, `/health`.
+- Models: `claude-code/<sonnet|opus|haiku|fable>`, `cursor/<auto|any model cursor-agent lists>`, `hermes/<model>` (SSH tunnel to your server).
+- Hermes: send `X-ChroMind-Server: you@host` and `X-ChroMind-Server-Password`; the Bridge tunnels to `127.0.0.1:8642` on that machine (same login style as TileSmith / DailyDash). Needs the system `ssh` client.
 - Every `/v1` call needs `Authorization: Bearer <token>` (`~/.chromind/bridge.json`). Requests with an `http(s)://` Origin (web pages) are refused.
 - Claude Code runs with `--tools ""`, no MCP, no slash commands, no saved session; Cursor in `--mode ask`. Each run gets a fresh empty folder.
 

@@ -5,6 +5,15 @@ group: Reference
 order: 4
 blurb: What changed, newest first.
 -->
+<h2>0.2.0 · 2026-10-17</h2>
+<p>Hermes server login matches TileSmith and DailyDash.</p>
+<ul>
+  <li>Hermes settings are now <strong>Address</strong> (<code>you@your-server</code>) and <strong>Password</strong> (SSH), instead of a raw API URL + key.</li>
+  <li>ChroMind Bridge opens an SSH tunnel to Hermes on the server, reads <code>API_SERVER_KEY</code> from <code>~/.hermes/.env</code>, and proxies the chat (tool chips still stream).</li>
+  <li>Local Hermes still works: put <code>http://127.0.0.1:8642</code> in Address and <code>API_SERVER_KEY</code> in Password.</li>
+  <li>Existing 0.1 settings with <code>baseUrl</code> / <code>apiKey</code> migrate automatically.</li>
+</ul>
+
 <h2>0.1.0 · 2026-10-17</h2>
 <p>First release.</p>
 <ul>

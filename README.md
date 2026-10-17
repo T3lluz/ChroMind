@@ -4,7 +4,7 @@
   <p>An AI side panel for Firefox and Chromium that answers with the AI you already have:<br/>
   your <b>Claude</b> login, <b>Claude Code</b> and <b>Cursor</b> through a tiny local bridge, or your own <b>Hermes Agent</b> server.</p>
   <p>
-    <img alt="Version" src="https://img.shields.io/badge/v0.1.0-111111?label=version" />
+    <img alt="Version" src="https://img.shields.io/badge/v0.2.0-111111?label=version" />
     <img alt="Manifest V3" src="https://img.shields.io/badge/MV3-3ee6b0" />
     <img alt="Firefox 140+" src="https://img.shields.io/badge/Firefox-140%2B-22d3ee?logo=firefoxbrowser&logoColor=white" />
     <img alt="Chrome 116+" src="https://img.shields.io/badge/Chromium-116%2B-22d3ee?logo=googlechrome&logoColor=white" />
@@ -43,7 +43,7 @@ From source: load `extension/` as unpacked in Chromium, or `npm run dev:firefox`
 | Claude | Your claude.ai login in the browser | None |
 | Claude Code | `claude` CLI + your subscription | [Bridge](#bridge) |
 | Cursor | `cursor-agent` CLI + your Cursor account | [Bridge](#bridge) |
-| Hermes Agent | Your Hermes API server (`API_SERVER_ENABLED=true`) | URL + key ([guide](https://t3lluz.github.io/ChroMind/docs/hermes/)) |
+| Hermes Agent | Hermes on your server (or this PC) | `you@ip` + SSH password via Bridge, or local URL + key ([guide](https://t3lluz.github.io/ChroMind/docs/hermes/)) |
 | OpenAI-compatible | Ollama, LM Studio, OpenRouter, vLLM… | URL + model |
 
 ## Bridge

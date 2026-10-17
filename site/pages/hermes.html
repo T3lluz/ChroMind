@@ -3,60 +3,80 @@ title: Connect Hermes Agent
 nav: Hermes Agent
 group: Connect
 order: 2
-blurb: Use your own Hermes Agent server, with its memory and tools, as ChroMind's brain.
+blurb: Use Hermes on your server with the same you@ip + password login as TileSmith and DailyDash.
 -->
 <p>
-  <a href="https://hermes-agent.nousresearch.com">Hermes Agent</a> by Nous Research ships an OpenAI-compatible API server.
-  ChroMind connects to it like any chat server, and also shows Hermes' tool progress while it works.
+  <a href="https://hermes-agent.nousresearch.com">Hermes Agent</a> by Nous Research runs on your machine (or a home server).
+  ChroMind connects the same way as <a href="https://github.com/T3lluz/TileSmith">TileSmith</a> and
+  <a href="https://github.com/T3lluz/DailyDash">DailyDash</a>: enter <code>you@your-server</code> and the SSH password.
+  <a href="{{root}}docs/bridge/">ChroMind Bridge</a> opens a private tunnel to Hermes' API on that machine — nothing needs to be exposed to the internet.
 </p>
 
-<h2>Turn on the API server</h2>
+<h2>On the server</h2>
 <ol class="steps">
   <li>
-    <strong>Add the API server settings</strong> to <code>~/.hermes/.env</code> on the machine running Hermes:
+    <strong>Install and run Hermes</strong> with its API server on localhost:
 <pre><code>API_SERVER_ENABLED=true
 API_SERVER_KEY=pick-a-long-random-key</code></pre>
-    The key is required, even on localhost. Generate one with <code>openssl rand -hex 24</code>.
-  </li>
-  <li>
-    <strong>Start the gateway:</strong>
+    in <code>~/.hermes/.env</code>, then:
 <pre><code>hermes gateway</code></pre>
-    It logs <code>API server listening on http://127.0.0.1:8642</code>.
+    It should log <code>API server listening on http://127.0.0.1:8642</code>. Generate a key with <code>openssl rand -hex 24</code>.
   </li>
   <li>
-    <strong>Fill in ChroMind</strong> → Settings → AI providers → Hermes Agent:
+    <strong>Reach the box over SSH</strong> — Tailscale is the easy path (<code>100.x.y.z</code> or MagicDNS). You only need a normal SSH login; Hermes itself can stay bound to localhost.
+  </li>
+</ol>
+
+<h2>In ChroMind</h2>
+<ol class="steps">
+  <li><strong>Start ChroMind Bridge</strong> on this computer and paste its token under Settings → Bridge.</li>
+  <li>
+    <strong>Settings → AI providers → Hermes Agent:</strong>
     <table>
       <thead><tr><th>Field</th><th>Value</th></tr></thead>
       <tbody>
-        <tr><td>Server URL</td><td><code>http://127.0.0.1:8642</code> (or your server, see below)</td></tr>
-        <tr><td>API key</td><td>Your <code>API_SERVER_KEY</code></td></tr>
+        <tr><td>Address</td><td><code>you@100.x.y.z</code> (add <code>:port</code> if SSH is not on 22)</td></tr>
+        <tr><td>Password</td><td>Your SSH password</td></tr>
         <tr><td>Model</td><td><code>hermes-agent</code>, or your profile name</td></tr>
         <tr><td>Profile</td><td>Optional, for multi-profile setups (<code>/p/&lt;profile&gt;</code>)</td></tr>
         <tr><td>Memory key</td><td>Sent as <code>X-Hermes-Session-Key</code> so Hermes scopes long-term memory to ChroMind</td></tr>
       </tbody>
     </table>
   </li>
-  <li><strong>Click Test.</strong> It lists the models the server reports. Then pick Hermes from the pill in the panel.</li>
+  <li><strong>Click Test.</strong> The Bridge SSHs in, tunnels to <code>127.0.0.1:8642</code>, reads <code>API_SERVER_KEY</code> from the server's <code>~/.hermes/.env</code>, and lists models. Then pick Hermes from the pill in the panel.</li>
 </ol>
 
 <div class="callout tip">
-  <p class="callout-title">No CORS setup needed</p>
-  <p>Requests come from the extension, not a web page, so you don't need <code>API_SERVER_CORS_ORIGINS</code>. ChroMind also drops its Origin header, so a strict allowlist won't block it.</p>
+  <p class="callout-title">Same login as your other apps</p>
+  <p>
+    Address is <code>user@host</code> or <code>user@host:port</code> — identical to TileSmith's Server page and DailyDash's server profiles.
+    The Bridge keeps the tunnel open while you chat so Hermes tool chips still stream through.
+  </p>
 </div>
 
-<h2>Hermes on another machine</h2>
-<p>If Hermes runs on a home server, reach it privately rather than exposing it to the internet:</p>
-<ul>
-  <li><strong>Tailscale:</strong> set <code>API_SERVER_HOST=0.0.0.0</code> (or the Tailscale IP) and use <code>http://your-server:8642</code> from your tailnet.</li>
-  <li><strong>Reverse proxy</strong> (Caddy, nginx) with HTTPS in front of <code>127.0.0.1:8642</code>, then use <code>https://hermes.example.com</code>.</li>
-</ul>
-<p>Hermes requires the key on any non-loopback bind. Keep it secret: anyone with it can run your agent.</p>
+<h2>Hermes on this PC</h2>
+<p>
+  If Hermes runs on the same machine as the browser, you do not need SSH. Put the API URL in Address and the API key in Password:
+</p>
+<table>
+  <thead><tr><th>Field</th><th>Value</th></tr></thead>
+  <tbody>
+    <tr><td>Address</td><td><code>http://127.0.0.1:8642</code></td></tr>
+    <tr><td>Password</td><td>Your <code>API_SERVER_KEY</code></td></tr>
+  </tbody>
+</table>
+<p>A bare host like <code>127.0.0.1</code> is treated as <code>http://127.0.0.1:8642</code>.</p>
+
+<div class="callout tip">
+  <p class="callout-title">No CORS setup needed</p>
+  <p>Requests come from the extension (or the Bridge), not a web page, so you don't need <code>API_SERVER_CORS_ORIGINS</code>. ChroMind also drops its Origin header on direct requests.</p>
+</div>
 
 <h2>Give ChroMind a safe profile</h2>
 <div class="callout warn">
   <p class="callout-title">Pages are untrusted</p>
   <p>
-    Unlike the Bridge, Hermes keeps its tools, including terminal access if you enabled it. A web page you ask about
+    Unlike Claude Code / Cursor through the Bridge, Hermes keeps its tools, including terminal access if you enabled it. A web page you ask about
     could contain text that tries to steer the agent. ChroMind marks page text as untrusted and tells the model to ignore
     instructions inside it, but the safe setup is a Hermes <strong>profile for browsing</strong> with only the tools you
     want here (web search, memory), and that profile name in ChroMind's Profile field.

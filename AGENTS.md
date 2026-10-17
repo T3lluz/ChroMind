@@ -16,7 +16,8 @@
 | `extension/lib/markdown.js` | Safe renderer: escapes everything, no raw HTML, **no images** (prevents exfiltration via image URLs). Classic script → `globalThis.CMMarkdown`. |
 | `extension/lib/net-rules.js` | DNR session rules for the extension's own requests (`tabIds: [-1]`): Origin `https://claude.ai` for claude.ai, no Origin elsewhere. |
 | `extension/styles/theme.css` | Tokens + shared components. The docs site imports the same file. |
-| `bridge/chromind-bridge.mjs` | One-file, zero-dependency local server. Keep it that way (users download the single file). |
+| `bridge/chromind-bridge.mjs` | One-file, zero-dependency local server. Keep it that way (users download the single file). Speaks to Claude Code / Cursor CLIs and can SSH-tunnel to Hermes (`you@host` + password). |
+| `extension/lib/server-address.js` | Parses `you@host` / HTTP URLs for Hermes (shared with tests; Bridge has its own copy of the SSH parser). |
 | `scripts/` | build, pack, sign-firefox (AMO API), build-site, render-icons, vendor, version. |
 | `site/` | Docs: `index.html` (landing), `pages/*.html` (front-matter comment + HTML), `assets/`. |
 

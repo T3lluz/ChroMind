@@ -16,7 +16,7 @@ blurb: Use the AI accounts you already have. Pick a default in settings and swit
     <tr><td><a href="#claude">Claude</a></td><td>claude.ai, in this browser</td><td>None</td><td>Yes</td></tr>
     <tr><td><a href="#claude-code">Claude Code</a></td><td><code>claude auth login</code></td><td><a href="{{root}}docs/bridge/">Bridge</a></td><td>No</td></tr>
     <tr><td><a href="#cursor">Cursor</a></td><td><code>cursor-agent login</code></td><td><a href="{{root}}docs/bridge/">Bridge</a></td><td>No</td></tr>
-    <tr><td><a href="{{root}}docs/hermes/">Hermes Agent</a></td><td>Your API server key</td><td>Server URL + key</td><td>Yes</td></tr>
+    <tr><td><a href="{{root}}docs/hermes/">Hermes Agent</a></td><td>SSH <code>you@host</code> + password (or local URL + API key)</td><td><a href="{{root}}docs/bridge/">Bridge</a> for SSH</td><td>Yes</td></tr>
     <tr><td><a href="#openai-compatible">OpenAI-compatible</a></td><td>Optional API key</td><td>Server URL + model</td><td>Model dependent</td></tr>
   </tbody>
 </table>
@@ -58,9 +58,10 @@ blurb: Use the AI accounts you already have. Pick a default in settings and swit
 
 <h2 id="hermes">Hermes Agent</h2>
 <p>
-  Point ChroMind at your <a href="https://hermes-agent.nousresearch.com">Hermes Agent</a> API server and Hermes answers with
-  its own memory and tools. Tool use shows up as chips above the answer. Full setup:
-  <a href="{{root}}docs/hermes/">Connect Hermes</a>.
+  Connect like TileSmith / DailyDash: <code>you@your-server</code> and the SSH password. ChroMind Bridge tunnels to
+  Hermes on that machine so the API can stay on localhost. For Hermes on this PC, use
+  <code>http://127.0.0.1:8642</code> and put <code>API_SERVER_KEY</code> in Password. Tool use shows up as chips above the answer.
+  Full setup: <a href="{{root}}docs/hermes/">Connect Hermes</a>.
 </p>
 
 <h2 id="openai-compatible">OpenAI-compatible servers</h2>

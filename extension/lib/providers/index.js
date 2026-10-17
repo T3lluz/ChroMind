@@ -6,6 +6,7 @@
  * runChat() and testProvider(), and add its defaults to lib/settings.js.
  */
 import { systemPrompt, toChatMessages } from '../prompts.js'
+import { parseServerAddress } from '../server-address.js'
 import { CLAUDE_WEB_MODELS, sendClaudeWeb, testClaudeWeb } from './claude-web.js'
 import { ProviderError } from './errors.js'
 import { endpoint, listModels, sendOpenAI } from './openai.js'
@@ -45,7 +46,7 @@ export const PROVIDERS = [
   {
     id: 'hermes',
     name: 'Hermes Agent',
-    detail: 'Your Hermes Agent server',
+    detail: 'Your server — user@ip, like TileSmith',
     images: true,
     freeModel: true,
     models: [{ id: 'hermes-agent', label: 'hermes-agent' }],
@@ -120,17 +121,7 @@ export async function runChat({ thread, settings, signal, emit }) {
   }
 
   if (provider.id === 'hermes') {
-    return sendOpenAI({
-      label: 'Hermes',
-      baseUrl: cfg.baseUrl,
-      apiKey: cfg.apiKey,
-      profile: cfg.profile,
-      model: cfg.model || 'hermes-agent',
-      headers: cfg.sessionKey ? { 'X-Hermes-Session-Key': cfg.sessionKey } : {},
-      messages: toChatMessages(messages, { system, images: true }),
-      signal,
-      emit,
-    })
+    return sendHermes({ cfg, settings, messages, system, signal, emit })
   }
 
   if (!cfg.model) {
@@ -157,6 +148,69 @@ export function sendableMessages(messages) {
   return out
 }
 
+/** Hermes over SSH (via Bridge) or a direct HTTP API URL. */
+async function sendHermes({ cfg, settings, messages, system, signal, emit }) {
+  const target = parseServerAddress(cfg.address)
+  if (target.kind === 'empty') {
+    throw new ProviderError('Set the Hermes server address in settings (you@your-server or http://127.0.0.1:8642).', {
+      code: 'setup',
+      action: 'settings',
+    })
+  }
+  if (target.kind === 'error') throw new ProviderError(target.message, { code: 'setup', action: 'settings' })
+
+  const sessionHeaders = cfg.sessionKey ? { 'X-Hermes-Session-Key': cfg.sessionKey } : {}
+  const chatMessages = toChatMessages(messages, { system, images: true })
+  const model = cfg.model || 'hermes-agent'
+
+  if (target.kind === 'http') {
+    if (!cfg.password) {
+      throw new ProviderError('Enter the Hermes API key (API_SERVER_KEY) in the Password field.', {
+        code: 'setup',
+        action: 'settings',
+      })
+    }
+    return sendOpenAI({
+      label: 'Hermes',
+      baseUrl: target.baseUrl,
+      apiKey: cfg.password,
+      profile: cfg.profile,
+      model,
+      headers: sessionHeaders,
+      messages: chatMessages,
+      signal,
+      emit,
+    })
+  }
+
+  const { url, token } = settings.bridge
+  if (!token) {
+    throw new ProviderError('SSH Hermes needs ChroMind Bridge. Start it and paste its token in settings.', {
+      code: 'setup',
+      action: 'settings:bridge',
+    })
+  }
+  if (!cfg.password) {
+    throw new ProviderError('Enter the SSH password for the server.', { code: 'setup', action: 'settings' })
+  }
+  return sendOpenAI({
+    label: 'Hermes',
+    baseUrl: url,
+    apiKey: token,
+    model: `hermes/${model}`,
+    headers: {
+      ...sessionHeaders,
+      'X-ChroMind-Server': cfg.address.trim(),
+      'X-ChroMind-Server-Password': cfg.password,
+      'X-ChroMind-Api-Port': String(cfg.apiPort || 8642),
+      ...(cfg.profile ? { 'X-ChroMind-Hermes-Profile': cfg.profile } : {}),
+    },
+    messages: chatMessages,
+    signal,
+    emit,
+  })
+}
+
 /** A one-line status for the settings page, or throws a ProviderError. */
 export async function testProvider(id, settings) {
   const provider = getProvider(id)
@@ -169,11 +223,70 @@ export async function testProvider(id, settings) {
     if (cli.loggedIn === false) throw new ProviderError(`${provider.name} CLI is not signed in. ${cli.hint ?? ''}`.trim())
     return `Ready · ${provider.name} CLI ${cli.version ?? ''}`.trim()
   }
+  if (id === 'hermes') return testHermes(cfg, settings)
   const models = await listModels({ baseUrl: cfg.baseUrl, apiKey: cfg.apiKey, profile: cfg.profile }).catch((err) => {
     if (err instanceof ProviderError) throw err
     throw new ProviderError(`Can't reach ${cfg.baseUrl}. Is the server running?`, { code: 'offline' })
   })
   return `Connected · ${models.length} model${models.length === 1 ? '' : 's'}${models.length ? ': ' + models.slice(0, 4).join(', ') : ''}`
+}
+
+async function testHermes(cfg, settings) {
+  const target = parseServerAddress(cfg.address)
+  if (target.kind === 'empty') {
+    throw new ProviderError('Enter you@your-server (SSH) or http://127.0.0.1:8642.', { code: 'setup' })
+  }
+  if (target.kind === 'error') throw new ProviderError(target.message, { code: 'setup' })
+
+  if (target.kind === 'http') {
+    const models = await listModels({
+      baseUrl: target.baseUrl,
+      apiKey: cfg.password,
+      profile: cfg.profile,
+    }).catch((err) => {
+      if (err instanceof ProviderError) throw err
+      throw new ProviderError(`Can't reach ${target.baseUrl}. Is Hermes running?`, { code: 'offline' })
+    })
+    return `Connected · ${models.length} model${models.length === 1 ? '' : 's'}${models.length ? ': ' + models.slice(0, 4).join(', ') : ''}`
+  }
+
+  const { url, token } = settings.bridge
+  if (!token) {
+    throw new ProviderError('Start ChroMind Bridge and paste its token first.', {
+      code: 'setup',
+      action: 'settings:bridge',
+    })
+  }
+  if (!cfg.password) throw new ProviderError('Enter the SSH password for the server.', { code: 'setup' })
+
+  let res
+  try {
+    res = await fetch(endpoint(url, '/server/test'), {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        address: cfg.address.trim(),
+        password: cfg.password,
+        apiPort: Number(cfg.apiPort) || 8642,
+      }),
+    })
+  } catch {
+    throw new ProviderError(`ChroMind Bridge is not running at ${url}.`, {
+      code: 'offline',
+      action: 'settings:bridge',
+    })
+  }
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new ProviderError(json?.error?.message || `Bridge answered ${res.status}.`, {
+      code: res.status === 401 ? 'setup' : 'offline',
+    })
+  }
+  const models = json.models ?? []
+  return `Connected to ${json.display || target.display} · Hermes API${models.length ? ': ' + models.slice(0, 4).join(', ') : ''}`
 }
 
 export async function bridgeStatus(settings) {
@@ -197,6 +310,18 @@ export async function fetchModels(id, settings) {
   if (getProvider(id).bridge) {
     const status = await bridgeStatus(settings)
     return status.providers?.[id]?.models ?? []
+  }
+  if (id === 'hermes') {
+    const target = parseServerAddress(cfg.address)
+    if (target.kind === 'http') {
+      return listModels({ baseUrl: target.baseUrl, apiKey: cfg.password, profile: cfg.profile })
+    }
+    if (target.kind === 'ssh') {
+      await testHermes(cfg, settings)
+      const status = await bridgeStatus(settings)
+      return status.server?.models ?? status.providers?.hermes?.models ?? ['hermes-agent']
+    }
+    throw new ProviderError('Enter a Hermes server address first.', { code: 'setup' })
   }
   return listModels({ baseUrl: cfg.baseUrl, apiKey: cfg.apiKey, profile: cfg.profile })
 }
