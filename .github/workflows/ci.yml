@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches-ignore: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - name: Lint the Firefox build
+        run: npm run lint:firefox
+      - name: Packages and docs build
+        run: |
+          set -euo pipefail
+          npm run pack
+          npm run site
+          test -f dist/chromind-chrome.zip
+          test -f dist/chromind-firefox-unsigned.xpi
+          test -f dist/site/index.html
+          test -f dist/site/docs/install/index.html

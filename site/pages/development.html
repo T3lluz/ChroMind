@@ -1,0 +1,115 @@
+<!--
+title: Development and releases
+nav: Development
+group: Reference
+order: 2
+blurb: Run it from source in Firefox, Zen and Chrome, and ship signed Firefox builds from your AMO developer account.
+-->
+<h2>Repository layout</h2>
+<pre><code>extension/            the extension (Chromium manifest; Firefox's is generated)
+  background.js       menus, shortcuts, panel hand-off, inline answers
+  sidepanel/          the panel (also the full-page chat)
+  options/            settings page
+  content/selection.js  selection toolbar + answer card
+  lib/providers/      claude.ai, OpenAI-compatible (Hermes, Bridge, custom)
+  lib/extract.js      page text, YouTube transcripts, links, screenshots
+  lib/markdown.js     safe Markdown renderer
+  styles/theme.css    tokens shared with this site
+bridge/chromind-bridge.mjs   the Bridge (one file, no dependencies)
+scripts/              build, pack, sign, docs, icons, version
+site/                 this documentation
+tests/                node --test unit tests + Playwright smoke test</code></pre>
+
+<h2>Run from source</h2>
+<pre><code>npm install
+npm test</code></pre>
+<p><strong>Chromium:</strong> <code>chrome://extensions</code> → Developer mode → Load unpacked → the <code>extension/</code> folder.</p>
+<p><strong>Firefox / Zen:</strong></p>
+<pre><code>npm run dev:firefox   # web-ext run with a fresh Firefox profile
+npm run dev:zen       # same, in Zen Browser</code></pre>
+<p>
+  Or build once with <code>npm run build</code> and load <code>dist/firefox/manifest.json</code> from
+  <code>about:debugging#/runtime/this-firefox</code> → Load Temporary Add-on. <code>npm run lint:firefox</code> runs Mozilla's
+  linter on the Firefox build.
+</p>
+
+<h2>One codebase, two browsers</h2>
+<table>
+  <thead><tr><th></th><th>Chromium</th><th>Firefox</th></tr></thead>
+  <tbody>
+    <tr><td>Panel</td><td><code>side_panel</code> + <code>sidePanel</code> permission</td><td><code>sidebar_action</code></td></tr>
+    <tr><td>Background</td><td>service worker (module)</td><td>event page (module)</td></tr>
+    <tr><td>Toolbar button</td><td><code>openPanelOnActionClick</code></td><td><code>sidebarAction.toggle()</code></td></tr>
+    <tr><td>Open shortcut</td><td><code>_execute_action</code></td><td><code>_execute_sidebar_action</code></td></tr>
+    <tr><td>Identity, updates</td><td>none</td><td><code>browser_specific_settings.gecko</code>: id, <code>update_url</code>, data collection</td></tr>
+  </tbody>
+</table>
+<p>
+  <code>scripts/extension-files.mjs</code> writes the Firefox manifest from the Chromium one at build time, so there's one
+  manifest to edit. Code uses <code>browser ?? chrome</code> and feature-detects the panel APIs
+  (<code>lib/browser.js</code>). Both browsers only open the panel inside a user gesture, so menu and shortcut handlers call
+  <code>openPanel()</code> first, before any <code>await</code>.
+</p>
+
+<h2>Packages</h2>
+<pre><code>npm run pack</code></pre>
+<table>
+  <thead><tr><th>File</th><th>For</th></tr></thead>
+  <tbody>
+    <tr><td><code>dist/chromind-chrome.zip</code></td><td>Load unpacked, or upload to the Chrome Web Store</td></tr>
+    <tr><td><code>dist/chromind-firefox-unsigned.xpi</code></td><td>Firefox before signing</td></tr>
+    <tr><td><code>dist/chromind-*.json</code></td><td>Version info the install page reads</td></tr>
+    <tr><td><code>dist/chromind-bridge.mjs</code></td><td>The Bridge download</td></tr>
+  </tbody>
+</table>
+
+<h2 id="firefox-signing">Signing for Firefox (your AMO account)</h2>
+<p>
+  Release Firefox only installs signed add-ons. ChroMind is signed as an <strong>unlisted</strong> add-on from your
+  addons.mozilla.org developer account: Mozilla signs it, but it's offered only from this site, not the add-ons store.
+  Same setup as YTMQ.
+</p>
+<ol class="steps">
+  <li>
+    <strong>Create API credentials</strong> on your AMO developer profile:
+    <a href="https://addons.mozilla.org/developers/addon/api/key/">addons.mozilla.org/developers/addon/api/key</a>.
+    You get a <em>JWT issuer</em> and a <em>JWT secret</em>.
+  </li>
+  <li>
+    <strong>Add them as GitHub secrets</strong> on the repository:
+<pre><code>gh secret set AMO_JWT_ISSUER -R T3lluz/ChroMind
+gh secret set AMO_JWT_SECRET -R T3lluz/ChroMind</code></pre>
+  </li>
+  <li>
+    <strong>Turn on GitHub Pages</strong> with <em>Source: GitHub Actions</em> (Settings → Pages). Every push to
+    <code>main</code> runs <code>.github/workflows/pages.yml</code>: tests, packages, signs the Firefox build and deploys
+    this site with the downloads and Firefox's update manifest.
+  </li>
+</ol>
+<p>
+  The add-on id is <code>chromind@t3lluz.com</code>. The first signed upload creates the add-on on your account; later ones
+  add versions. Mozilla takes each version number once, so ship a Firefox update by bumping the version:
+</p>
+<pre><code>npm run release -- patch    # or minor, major, 1.2.3
+git commit -am "Release v0.1.1" &amp;&amp; git push</code></pre>
+<p>
+  If the version is already on AMO, the workflow downloads that signed build instead of uploading again. Installed copies
+  pick up new versions through <code>update_url</code>
+  (<code>https://t3lluz.github.io/ChroMind/chromind-firefox-updates.json</code>).
+</p>
+<p>Sign locally instead:</p>
+<pre><code>npm run pack
+AMO_JWT_ISSUER=user:123:456 AMO_JWT_SECRET=… npm run sign:firefox</code></pre>
+<p>Hosting the site elsewhere (say <code>t3lluz.com/chromind</code>)? Set <code>CHROMIND_SITE</code> when packing so the Firefox <code>update_url</code> points there.</p>
+
+<h2>Docs and screenshots</h2>
+<pre><code>npm run dev:site      # http://localhost:4173/ChroMind/
+npm run screenshots   # Playwright: loads the extension, refreshes site/assets/screens</code></pre>
+<p>Docs pages are plain HTML in <code>site/pages/</code> with a short front-matter comment for title, group and order.</p>
+
+<h2>Adding a provider</h2>
+<ol>
+  <li>Describe it in <code>PROVIDERS</code> and add a branch to <code>runChat()</code> and <code>testProvider()</code> in <code>lib/providers/index.js</code>.</li>
+  <li>Add defaults in <code>lib/settings.js</code> and fields in <code>options/options.js</code>.</li>
+  <li>If it's a CLI, add it to the Bridge instead: a <code>provider/model</code> prefix, a spawn branch and a stream parser.</li>
+</ol>

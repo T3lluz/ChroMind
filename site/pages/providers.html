@@ -1,0 +1,83 @@
+<!--
+title: AI providers
+nav: AI providers
+group: Start here
+order: 3
+blurb: Use the AI accounts you already have. Pick a default in settings and switch any time from the panel.
+-->
+<p>
+  The pill at the top of the panel shows who's answering. Click it to switch provider or model for the next message.
+  The default lives in <strong>Settings → AI providers</strong>, where each one also has a <strong>Test</strong> button.
+</p>
+
+<table>
+  <thead><tr><th>Provider</th><th>Signs in with</th><th>Setup</th><th>Images</th></tr></thead>
+  <tbody>
+    <tr><td><a href="#claude">Claude</a></td><td>claude.ai, in this browser</td><td>None</td><td>Yes</td></tr>
+    <tr><td><a href="#claude-code">Claude Code</a></td><td><code>claude auth login</code></td><td><a href="{{root}}docs/bridge/">Bridge</a></td><td>No</td></tr>
+    <tr><td><a href="#cursor">Cursor</a></td><td><code>cursor-agent login</code></td><td><a href="{{root}}docs/bridge/">Bridge</a></td><td>No</td></tr>
+    <tr><td><a href="{{root}}docs/hermes/">Hermes Agent</a></td><td>Your API server key</td><td>Server URL + key</td><td>Yes</td></tr>
+    <tr><td><a href="#openai-compatible">OpenAI-compatible</a></td><td>Optional API key</td><td>Server URL + model</td><td>Model dependent</td></tr>
+  </tbody>
+</table>
+
+<h2 id="claude">Claude (claude.ai login)</h2>
+<p>
+  If you're signed in to <a href="https://claude.ai">claude.ai</a> in the same browser, ChroMind uses that login. Requests go
+  straight from the extension to claude.ai, like the web app, so it counts against your plan's usage the same way.
+</p>
+<ul>
+  <li><strong>Model:</strong> <em>Account default</em> uses whatever claude.ai would. Paid plans can pick Opus 5.5, Sonnet 5.5, Haiku 5.5 or Fable 5.1.</li>
+  <li><strong>History:</strong> each ChroMind chat becomes one claude.ai conversation named <em>ChroMind · …</em>, so you can continue it on claude.ai (there's an <em>Open in claude.ai</em> link under each answer). Turn off <em>Keep ChroMind chats in my claude.ai history</em> and ChroMind asks for temporary chats and deletes them when you start a new chat or delete it from history.</li>
+  <li><strong>Page text</strong> is sent as an attachment, so the conversation on claude.ai stays readable.</li>
+</ul>
+<div class="callout warn">
+  <p class="callout-title">Signed out, or a browser check?</p>
+  <p>ChroMind shows <em>Sign in to claude.ai</em> with a button. If claude.ai shows a "checking your browser" page, open claude.ai in a tab once and try again.</p>
+</div>
+
+<h2 id="claude-code">Claude Code (via Bridge)</h2>
+<p>
+  Uses the <a href="https://claude.com/claude-code">Claude Code</a> CLI with the account it's signed in to, so your Claude
+  Pro or Max subscription answers. It needs <a href="{{root}}docs/bridge/">ChroMind Bridge</a> running on your computer.
+</p>
+<ul>
+  <li>Models: <code>sonnet</code>, <code>opus</code>, <code>haiku</code>, <code>fable</code> (the CLI's aliases).</li>
+  <li>The Bridge runs <code>claude -p</code> with <strong>all tools turned off</strong> in an empty scratch folder, with no session saved. It answers; it can't touch your files.</li>
+</ul>
+
+<h2 id="cursor">Cursor (via Bridge)</h2>
+<p>
+  Uses the <a href="https://cursor.com/cli">Cursor CLI</a> (<code>cursor-agent</code>) with your Cursor account and its
+  model list: <em>Auto</em>, plus every model your plan has. Click <strong>Load models</strong> in settings to fill the list.
+</p>
+<ul>
+  <li>Runs in Cursor's read-only <code>ask</code> mode in an empty scratch folder.</li>
+  <li>Startup takes a few seconds per message; that's the CLI booting.</li>
+</ul>
+
+<h2 id="hermes">Hermes Agent</h2>
+<p>
+  Point ChroMind at your <a href="https://hermes-agent.nousresearch.com">Hermes Agent</a> API server and Hermes answers with
+  its own memory and tools. Tool use shows up as chips above the answer. Full setup:
+  <a href="{{root}}docs/hermes/">Connect Hermes</a>.
+</p>
+
+<h2 id="openai-compatible">OpenAI-compatible servers</h2>
+<p>Anything with <code>/v1/chat/completions</code>:</p>
+<table>
+  <thead><tr><th>Server</th><th>URL</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>Ollama</td><td><code>http://127.0.0.1:11434</code></td><td>Model like <code>llama3.2</code>; vision models take screenshots</td></tr>
+    <tr><td>LM Studio</td><td><code>http://127.0.0.1:1234</code></td><td>Start the local server in LM Studio</td></tr>
+    <tr><td>OpenRouter</td><td><code>https://openrouter.ai/api</code></td><td>Needs an API key</td></tr>
+    <tr><td>vLLM, LiteLLM, llama.cpp</td><td>Your server</td><td>Any OpenAI-style endpoint</td></tr>
+  </tbody>
+</table>
+<p>ChroMind adds <code>/v1</code> when the URL doesn't end in a version. <strong>Load models</strong> asks the server for its list.</p>
+
+<h2>Switching mid-chat</h2>
+<p>
+  You can change provider between messages. Stateless providers (Bridge, Hermes, OpenAI-compatible) get the whole chat each
+  time. For Claude, ChroMind starts a claude.ai conversation and brings the earlier messages along.
+</p>

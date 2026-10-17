@@ -1,0 +1,78 @@
+<!--
+title: Install ChroMind
+nav: Install
+group: Start here
+order: 2
+blurb: Once per browser. Firefox and Zen install with one click; Chromium browsers load the folder.
+-->
+<div class="tabs" data-tabs>
+  <div role="tablist" aria-label="Browser">
+    <button type="button" role="tab" data-tab="firefox">Firefox, Zen &amp; forks</button>
+    <button type="button" role="tab" data-tab="chrome">Chrome, Edge, Brave &amp; Chromium</button>
+  </div>
+
+  <section role="tabpanel" data-panel="firefox" id="firefox">
+    <div class="dl-card">
+      <div class="dl-copy">
+        <strong>ChroMind for Firefox <span data-version="firefox"></span></strong>
+        <small>Signed by Mozilla. Updates install on their own.</small>
+      </div>
+      <a class="btn primary" href="{{root}}chromind-firefox.xpi" data-firefox-install>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>Add to Firefox</a>
+    </div>
+    <ol class="steps">
+      <li><strong>Click Add to Firefox.</strong> Firefox asks twice: first <em>Continue to Installation</em> (the add-on comes from this site rather than the add-ons store), then <em>Add</em>.</li>
+      <li><strong>Allow website access</strong> if Firefox asks. ChroMind needs it to read pages and to reach claude.ai, the Bridge and your servers.</li>
+      <li><strong>Open it.</strong> Click the ChroMind button in the toolbar or press <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>A</kbd>. It opens in the sidebar. In Zen, pin it from the toolbar's extension menu.</li>
+    </ol>
+    <div class="callout warn" data-firefox-unsigned-note hidden>
+      <p class="callout-title">The signed build isn't published yet</p>
+      <p>Release Firefox only installs add-ons Mozilla has signed. Until the signed build is up:</p>
+      <ul>
+        <li><strong>For this session:</strong> open <code>about:debugging#/runtime/this-firefox</code>, click <em>Load Temporary Add-on</em> and pick the file below. Firefox removes it when it closes.</li>
+        <li><strong>To keep it</strong> in Developer Edition, Nightly, Zen, LibreWolf and other builds that allow it: set <code>xpinstall.signatures.required</code> to <code>false</code> in <code>about:config</code>, then open the file.</li>
+      </ul>
+      <p><a href="{{root}}chromind-firefox-unsigned.xpi" data-firefox-unsigned>chromind-firefox-unsigned.xpi</a></p>
+    </div>
+    <div class="callout tip">
+      <p class="callout-title">Works in Firefox forks</p>
+      <p>Zen, LibreWolf, Floorp and Waterfox install the same file the same way. Needs Firefox 140 or newer.</p>
+    </div>
+  </section>
+
+  <section role="tabpanel" data-panel="chrome" id="chrome">
+    <div class="dl-card">
+      <div class="dl-copy">
+        <strong>ChroMind for Chromium <span data-version="chrome"></span></strong>
+        <small>Chrome, Edge, Brave, Vivaldi, Opera, Arc. Chrome 116 or newer.</small>
+      </div>
+      <a class="btn primary" href="{{root}}chromind-chrome.zip" data-chrome-zip download>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>Download chromind-chrome.zip</a>
+    </div>
+    <ol class="steps">
+      <li><strong>Unzip it into a folder you keep</strong>, for example <code>Documents/ChroMind</code>. The browser runs the extension from that folder, so don't leave it in Downloads.</li>
+      <li><strong>Open the extensions page and turn on Developer mode.</strong> Paste <code>chrome://extensions</code> in the address bar (Edge: <code>edge://extensions</code>, Brave: <code>brave://extensions</code>) and switch on <em>Developer mode</em>.</li>
+      <li><strong>Click Load unpacked</strong> and pick the folder with <code>manifest.json</code> in it.</li>
+      <li><strong>Pin it.</strong> Click the puzzle piece, pin ChroMind, then click it (or <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>A</kbd>) to open the side panel.</li>
+    </ol>
+    <div class="callout">
+      <p class="callout-title">Updating</p>
+      <p>Download the new zip, unzip it over the same folder, and press the reload arrow on ChroMind's card in <code>chrome://extensions</code>. Your settings and chats stay.</p>
+    </div>
+    <div class="callout">
+      <p class="callout-title">From the repository</p>
+      <p>Cloned the repo? Load the <code>extension/</code> folder directly. It has the Chromium manifest.</p>
+    </div>
+  </section>
+</div>
+
+<h2>After installing</h2>
+<p>
+  ChroMind opens its settings once. Pick the provider that should answer by default. If you're signed in to
+  <a href="https://claude.ai">claude.ai</a>, Claude works right away. See <a href="{{root}}docs/providers/">AI providers</a>
+  for the others.
+</p>
+<figure>
+  <img class="shot" src="{{root}}assets/screens/options.png" alt="ChroMind settings page" width="760" loading="lazy">
+  <figcaption>The settings page: providers, the Bridge, behavior and your own actions.</figcaption>
+</figure>

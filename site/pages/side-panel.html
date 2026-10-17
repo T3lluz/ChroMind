@@ -1,0 +1,81 @@
+<!--
+title: The side panel
+nav: The side panel
+group: Using ChroMind
+order: 1
+blurb: Chat about the page you're on, run quick actions, add tabs and screenshots, and find old chats.
+-->
+<figure>
+  <img class="shot" src="{{root}}assets/screens/panel-answer.png" alt="ChroMind side panel answering about a page" width="380" loading="lazy">
+  <figcaption>An answer about the current page, with copy, regenerate and read-aloud underneath.</figcaption>
+</figure>
+
+<h2>Open it</h2>
+<ul>
+  <li>Click the ChroMind toolbar button, or press <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>A</kbd>.</li>
+  <li>Chromium: it's the browser's side panel. Firefox and Zen: it's the sidebar (switch sidebars from its header).</li>
+  <li>The panel follows your active tab. Reopening it brings back the chat you had.</li>
+</ul>
+
+<h2>The page bar</h2>
+<p>
+  Under the header, ChroMind shows the tab it's reading. The <strong>Page</strong> switch decides whether the page goes with
+  your question; ChroMind sends a page once per chat and reuses it for follow-ups. On YouTube it says
+  <strong>Video</strong> and sends the transcript instead.
+</p>
+<ul>
+  <li><strong>Add tabs</strong> (the tabs icon) puts other tabs in the chat, for comparing or summarizing several pages.</li>
+  <li>Pages ChroMind can't read (browser pages, extension stores, PDFs in the built-in viewer) show <em>ChroMind can't read this page</em>, and you can still chat.</li>
+  <li>Long pages are cut at the limit in Settings → Behavior (60,000 characters by default), and the model is told.</li>
+</ul>
+
+<h2>Quick actions and slash commands</h2>
+<p>
+  An empty chat shows actions for what's in front of you: a page, a video, a selection, a link or several tabs. Type
+  <code>/</code> in the message box for the full list, use the arrow keys and <kbd>Enter</kbd>, or keep typing to add
+  instructions: <code>/translate make it formal</code>.
+</p>
+<table>
+  <thead><tr><th>Action</th><th>Works on</th></tr></thead>
+  <tbody>
+    <tr><td>Summarize, Key points</td><td>Page, video, selection, link, tabs</td></tr>
+    <tr><td>Explain, Explain like I'm 5, Simplify</td><td>Page, selection</td></tr>
+    <tr><td>Translate (to the language in settings)</td><td>Page, selection</td></tr>
+    <tr><td>Improve writing, Draft a reply</td><td>Selection</td></tr>
+    <tr><td>Fact-check, Action items</td><td>Page, selection</td></tr>
+    <tr><td>Suggest questions</td><td>Page, video, tabs</td></tr>
+    <tr><td>Compare</td><td>Tabs</td></tr>
+    <tr><td>Describe image</td><td>Images, screenshots</td></tr>
+  </tbody>
+</table>
+<p>Add your own in Settings → Quick actions. They appear here, in the slash menu, in right-click menus and in the selection toolbar.</p>
+
+<h2>YouTube</h2>
+<p>
+  On a video page ChroMind opens YouTube's transcript, reads it with timestamps and closes it again. Answers cite
+  moments like <code>[4:12]</code>; click one to jump the video there. Videos without captions fall back to the page text.
+</p>
+
+<h2>Screenshots and images</h2>
+<p>
+  The camera button attaches a screenshot of the visible page: handy for charts, designs and image-heavy pages. Right-click
+  any image for <em>Describe image</em> or <em>Ask about this image</em>. Claude, Hermes and vision models on
+  OpenAI-compatible servers can see images; the Bridge providers can't yet.
+</p>
+
+<h2>Answers</h2>
+<ul>
+  <li>Answers stream in as Markdown, with code blocks you can copy and tables that scroll.</li>
+  <li>Models that think show a collapsible <em>Thinking…</em> section; agents like Hermes show the tools they use.</li>
+  <li>Under each answer: <strong>Copy</strong>, <strong>Read aloud</strong>, <strong>Regenerate</strong>, and for Claude, <strong>Open in claude.ai</strong>.</li>
+  <li><kbd>Esc</kbd> or the stop button ends an answer early.</li>
+</ul>
+
+<h2>History</h2>
+<p>
+  Chats are saved in the browser (Settings → Data &amp; privacy turns that off). The history button lists them by day with
+  search; <strong>Export chat</strong> saves the open one as Markdown. The <code>+</code> button starts a new chat.
+</p>
+
+<h2>Full-page chat</h2>
+<p>Type <code>cm</code>, a space and a question in the address bar. ChroMind opens in a tab and answers there, without page context.</p>

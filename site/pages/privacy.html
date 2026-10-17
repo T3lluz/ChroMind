@@ -1,0 +1,45 @@
+<!--
+title: Data and privacy
+nav: Data & privacy
+group: Reference
+order: 1
+blurb: ChroMind has no server. Here's exactly what goes where.
+-->
+<h2>What leaves your browser</h2>
+<p>Only when you send a message or run an action, and only to the provider you picked:</p>
+<table>
+  <thead><tr><th>Provider</th><th>Receives</th><th>Goes to</th></tr></thead>
+  <tbody>
+    <tr><td>Claude</td><td>Your message, page text, screenshots</td><td>claude.ai, under your account</td></tr>
+    <tr><td>Claude Code, Cursor</td><td>The chat and page text</td><td>The Bridge on your computer, then Anthropic or Cursor through their CLIs</td></tr>
+    <tr><td>Hermes</td><td>The chat, page text, images</td><td>Your Hermes server (and whatever model it uses)</td></tr>
+    <tr><td>OpenAI-compatible</td><td>The chat, page text, images</td><td>The server you entered</td></tr>
+  </tbody>
+</table>
+<p>Page text is read when you ask, not in the background. The Page switch in the panel turns it off per chat.</p>
+
+<h2>What stays in your browser</h2>
+<ul>
+  <li><strong>Settings</strong>, including server keys and the Bridge token: <code>storage.local</code>, never synced.</li>
+  <li><strong>Chat history</strong>: <code>storage.local</code>, up to 300 chats. Turn it off or delete it in Settings → Data &amp; privacy.</li>
+</ul>
+
+<h2>What ChroMind never does</h2>
+<ul>
+  <li>No analytics, telemetry or ads. There's no ChroMind server to send anything to.</li>
+  <li>Answers can't load remote images or scripts: the Markdown renderer drops raw HTML and images, so a page can't sneak data out through an answer.</li>
+  <li>The selection toolbar only reads what you select, and only when you click it.</li>
+</ul>
+
+<h2>Permissions</h2>
+<table>
+  <thead><tr><th>Permission</th><th>Why</th></tr></thead>
+  <tbody>
+    <tr><td>Access to all websites</td><td>Read the page you ask about, reach claude.ai, the Bridge and your servers, show the selection toolbar</td></tr>
+    <tr><td>Side panel / sidebar</td><td>The panel itself</td></tr>
+    <tr><td>Context menus</td><td>Right-click actions</td></tr>
+    <tr><td>Scripting, active tab</td><td>Read page text and YouTube transcripts when you ask</td></tr>
+    <tr><td>Storage (unlimited)</td><td>Settings and chat history on this device</td></tr>
+    <tr><td>Declarative net request</td><td>Set claude.ai's Origin header and drop it for your own servers, on ChroMind's requests only</td></tr>
+  </tbody>
+</table>

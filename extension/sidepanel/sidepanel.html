@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ChroMind</title>
+    <link rel="stylesheet" href="../styles/theme.css" />
+    <link rel="stylesheet" href="../styles/markdown.css" />
+    <link rel="stylesheet" href="sidepanel.css" />
+    <script src="../lib/markdown.js"></script>
+    <script src="../vendor/Readability.js"></script>
+    <script type="module" src="sidepanel.js"></script>
+  </head>
+  <body>
+    <div class="shell" id="shell">
+      <div class="scroller" id="scroller">
+        <header class="app-header">
+          <div class="frost" aria-hidden="true"><div class="frost-dots"></div><div class="frost-glass"></div></div>
+          <div class="header-top">
+            <div class="brand">
+              <img src="../icons/icon.svg" width="28" height="28" alt="" />
+              <h1>ChroMind</h1>
+            </div>
+            <button type="button" class="provider-pill" id="providerBtn" aria-haspopup="menu" aria-expanded="false">
+              <span class="provider-dot"></span>
+              <span class="provider-name" id="providerName">Claude</span>
+              <span class="provider-model" id="providerModel"></span>
+              <span class="chev" data-icon="chevron"></span>
+            </button>
+            <div class="header-actions">
+              <button type="button" class="icon-btn ghost" id="newChatBtn" title="New chat" data-icon="plus"></button>
+              <button type="button" class="icon-btn ghost" id="historyBtn" title="History" data-icon="history"></button>
+              <button type="button" class="icon-btn ghost" id="settingsBtn" title="Settings" data-icon="settings"></button>
+            </div>
+          </div>
+          <div class="context-bar" id="contextBar">
+            <img class="ctx-favicon" id="ctxFavicon" alt="" width="16" height="16" />
+            <div class="ctx-text">
+              <div class="ctx-title" id="ctxTitle">No page</div>
+              <div class="ctx-meta" id="ctxMeta"></div>
+            </div>
+            <button type="button" class="ctx-toggle" id="ctxToggle" aria-pressed="true" title="Send this page with your question">
+              <span class="ctx-toggle-dot"></span><span id="ctxToggleLabel">Page</span>
+            </button>
+            <button type="button" class="icon-btn sm ghost" id="tabsBtn" title="Add other tabs" data-icon="tabs"></button>
+          </div>
+          <div class="ctx-chips" id="ctxChips" hidden></div>
+        </header>
+
+        <main>
+          <section class="welcome" id="welcome">
+            <p class="hello">Hi! What should we <span class="gradient-text">dig into</span>?</p>
+            <p class="hello-sub" id="welcomeSub">Ask anything about this page, or start with an action.</p>
+            <div class="action-grid" id="actionGrid"></div>
+            <ul class="tips">
+              <li><span data-icon="zap"></span> Type <kbd>/</kbd> for actions like <code>/summarize</code></li>
+              <li><span data-icon="quote"></span> Select text on a page for the quick toolbar</li>
+              <li><span data-icon="keyboard"></span> <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd> summarizes the page</li>
+            </ul>
+          </section>
+          <div class="messages" id="messages" aria-live="polite"></div>
+        </main>
+      </div>
+
+      <footer class="composer" id="composer">
+        <div class="slash-menu" id="slashMenu" role="listbox" hidden></div>
+        <div class="composer-box">
+          <div class="attachments" id="attachments" hidden></div>
+          <textarea id="input" rows="1" placeholder="Ask about this page…" aria-label="Message"></textarea>
+          <div class="composer-row">
+            <button type="button" class="icon-btn sm ghost" id="actionsBtn" title="Actions ( / )" data-icon="zap"></button>
+            <button type="button" class="icon-btn sm ghost" id="shotBtn" title="Attach a screenshot of the page" data-icon="camera"></button>
+            <span class="composer-status" id="composerStatus"></span>
+            <button type="button" class="send-btn" id="sendBtn" title="Send" data-icon="send" disabled></button>
+          </div>
+        </div>
+      </footer>
+
+      <div class="popover" id="providerMenu" role="menu" hidden></div>
+      <div class="popover" id="tabsMenu" role="menu" hidden></div>
+
+      <aside class="drawer" id="historyDrawer" aria-label="History" hidden>
+        <div class="drawer-head">
+          <div class="drawer-search">
+            <span data-icon="search"></span>
+            <input type="search" id="historySearch" placeholder="Search chats" />
+          </div>
+          <button type="button" class="icon-btn ghost" id="historyClose" title="Close" data-icon="close"></button>
+        </div>
+        <div class="drawer-list" id="historyList"></div>
+        <div class="drawer-foot">
+          <button type="button" class="btn" id="exportBtn"><span data-icon="download"></span>Export chat</button>
+          <button type="button" class="btn danger" id="clearHistoryBtn"><span data-icon="trash"></span>Clear all</button>
+        </div>
+      </aside>
+
+      <div class="toast" id="toast" role="status" hidden></div>
+    </div>
+  </body>
+</html>

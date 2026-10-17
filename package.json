@@ -1,0 +1,31 @@
+{
+  "name": "chromind",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "AI side panel for Firefox and Chromium. Ask about any page with your Claude and Cursor logins, or your own Hermes Agent server.",
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test \"tests/*.test.js\"",
+    "icons": "node scripts/render-icons.mjs",
+    "vendor": "node scripts/vendor.mjs",
+    "build": "node scripts/build.mjs",
+    "pack": "node scripts/pack.mjs",
+    "sign:firefox": "node scripts/sign-firefox.mjs",
+    "lint:firefox": "node scripts/build.mjs && web-ext lint --source-dir dist/firefox --self-hosted",
+    "site": "node scripts/build-site.mjs",
+    "dev:site": "node scripts/build-site.mjs --serve",
+    "dev:firefox": "node scripts/build.mjs && web-ext run --source-dir dist/firefox",
+    "dev:zen": "node scripts/build.mjs && web-ext run --source-dir dist/firefox --firefox \"C:/Program Files/Zen Browser/zen.exe\"",
+    "bridge": "node bridge/chromind-bridge.mjs",
+    "release": "node scripts/version.mjs",
+    "test:e2e": "node tests/extension.e2e.mjs",
+    "screenshots": "node tests/extension.e2e.mjs --screenshots"
+  },
+  "devDependencies": {
+    "@mozilla/readability": "^0.6.0",
+    "@resvg/resvg-js": "^2.6.2",
+    "playwright": "^1.64.1",
+    "web-ext": "^10.8.0"
+  }
+}

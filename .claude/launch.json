@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "docs",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["scripts/build-site.mjs", "--serve"],
+      "port": 4173
+    }
+  ]
+}

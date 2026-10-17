@@ -1,0 +1,55 @@
+<!--
+title: Troubleshooting
+nav: Troubleshooting
+group: Reference
+order: 3
+blurb: When an answer doesn't come, start here.
+-->
+<h2>Claude</h2>
+<table>
+  <thead><tr><th>You see</th><th>Do this</th></tr></thead>
+  <tbody>
+    <tr><td><em>Sign in to claude.ai in this browser</em></td><td>Open claude.ai in this browser (same profile, and in Firefox the same container) and sign in.</td></tr>
+    <tr><td><em>claude.ai wants a quick browser check</em></td><td>Open claude.ai in a tab once so it can finish its check, then retry.</td></tr>
+    <tr><td><em>usage limit</em></td><td>Your plan's limit is reached. Wait, or switch provider from the pill.</td></tr>
+    <tr><td>A model choice is ignored</td><td>Free plans can't pick models; use <em>Account default</em>.</td></tr>
+  </tbody>
+</table>
+
+<h2>Claude Code and Cursor</h2>
+<table>
+  <thead><tr><th>You see</th><th>Do this</th></tr></thead>
+  <tbody>
+    <tr><td><em>ChroMind Bridge is not running</em></td><td>Start it: <code>node chromind-bridge.mjs</code>, or <code>install</code> it to start with your computer.</td></tr>
+    <tr><td><em>the token does not match</em></td><td>Run <code>node chromind-bridge.mjs token</code> and paste it into Settings → Bridge.</td></tr>
+    <tr><td><em>CLI not found</em></td><td>Install the CLI, or set <code>CHROMIND_CLAUDE_BIN</code> / <code>CHROMIND_CURSOR_BIN</code> and restart the Bridge.</td></tr>
+    <tr><td><em>not signed in</em></td><td><code>claude auth login</code> or <code>cursor-agent login</code>, then retry.</td></tr>
+    <tr><td><em>Port 8765 is in use</em></td><td>A Bridge is already running. Or set <code>CHROMIND_BRIDGE_PORT</code> and update the URL in settings.</td></tr>
+    <tr><td>Cursor is slow to start</td><td>Each message starts the CLI (a few seconds). Claude Code starts faster.</td></tr>
+  </tbody>
+</table>
+
+<h2>Hermes</h2>
+<table>
+  <thead><tr><th>You see</th><th>Do this</th></tr></thead>
+  <tbody>
+    <tr><td><em>Can't reach Hermes</em></td><td>Is <code>hermes gateway</code> running with <code>API_SERVER_ENABLED=true</code>? Check the URL and port (8642).</td></tr>
+    <tr><td><em>rejected the key</em></td><td>The API key must match <code>API_SERVER_KEY</code> exactly.</td></tr>
+    <tr><td><em>no chat endpoint</em></td><td>The URL points at the wrong place. Use the server root, like <code>http://127.0.0.1:8642</code>.</td></tr>
+  </tbody>
+</table>
+
+<h2>The panel and pages</h2>
+<table>
+  <thead><tr><th>You see</th><th>Do this</th></tr></thead>
+  <tbody>
+    <tr><td><em>ChroMind can't read this page</em></td><td>Browser pages, extension stores and the built-in PDF viewer are off-limits to extensions. Copy the text in, or use a screenshot.</td></tr>
+    <tr><td>Firefox: no page text, menus missing</td><td>Settings → Get started shows <em>Allow access to websites</em> if Firefox hasn't granted it. Click it.</td></tr>
+    <tr><td>YouTube answers without a transcript</td><td>The video has no captions, or YouTube changed its transcript panel. ChroMind falls back to the page text.</td></tr>
+    <tr><td>No selection toolbar</td><td>Check Settings → Behavior: the toolbar switch and the per-site list. It also skips text fields.</td></tr>
+    <tr><td>The panel doesn't open from the answer card (Firefox)</td><td>Firefox only opens the sidebar from a toolbar click or shortcut: press <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>A</kbd>.</td></tr>
+  </tbody>
+</table>
+
+<h2>Still stuck?</h2>
+<p><a href="https://github.com/T3lluz/ChroMind/issues">Open an issue</a> with your browser, ChroMind version and the message you see.</p>

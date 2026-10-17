@@ -1,0 +1,462 @@
+/*
+ * ChroMind theme: ChroMods' dark glass look, in mint green and cyan.
+ * Dark tokens are the default (no flash before JS sets data-theme);
+ * [data-theme="light"] swaps them.
+ */
+:root {
+  color-scheme: dark;
+  --font: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --mono: "JetBrains Mono", "Cascadia Code", ui-monospace, SFMono-Regular, Consolas, monospace;
+
+  --accent: #3ee6b0;
+  --accent-2: #22d3ee;
+  --accent-rgb: 62, 230, 176;
+  --accent-2-rgb: 34, 211, 238;
+  --accent-ink: #032019;
+  --accent-dim: rgba(62, 230, 176, 0.13);
+  --grad: linear-gradient(135deg, #b9ffe4 0%, #3ee6b0 46%, #1ec8e6 100%);
+  --grad-text: linear-gradient(100deg, #9dfbd8 0%, #3ee6b0 40%, #22d3ee 100%);
+
+  --bg: #0b0f0f;
+  --bg-elevated: #111716;
+  --bg-card: #151c1b;
+  --bg-subtle: #1a2321;
+  --bg-hover: rgba(255, 255, 255, 0.04);
+  --border: rgba(255, 255, 255, 0.07);
+  --border-strong: rgba(255, 255, 255, 0.12);
+  --text: #e8f2ef;
+  --text-muted: #87a19b;
+  --text-faint: #5f7570;
+  --danger: #ff6b81;
+  --danger-dim: rgba(255, 107, 129, 0.12);
+  --warn: #ffc76b;
+  --glass: rgba(13, 19, 18, 0.58);
+  --shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  --switch-off: #34413e;
+  --radius: 12px;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --accent: #0aa57a;
+  --accent-2: #0891b2;
+  --accent-rgb: 10, 165, 122;
+  --accent-2-rgb: 8, 145, 178;
+  --accent-ink: #ffffff;
+  --accent-dim: rgba(10, 165, 122, 0.11);
+  --grad: linear-gradient(135deg, #12c595 0%, #0aa57a 46%, #0891b2 100%);
+  --grad-text: linear-gradient(100deg, #0aa57a 0%, #0b9e86 45%, #0891b2 100%);
+
+  --bg: #f3f8f6;
+  --bg-elevated: #ffffff;
+  --bg-card: #ffffff;
+  --bg-subtle: #e9f1ee;
+  --bg-hover: rgba(10, 40, 32, 0.04);
+  --border: rgba(10, 40, 32, 0.08);
+  --border-strong: rgba(10, 40, 32, 0.14);
+  --text: #0f201b;
+  --text-muted: #566d67;
+  --text-faint: #8a9d98;
+  --danger: #d9354f;
+  --danger-dim: rgba(217, 53, 79, 0.08);
+  --warn: #b7791f;
+  --glass: rgba(246, 251, 249, 0.62);
+  --shadow: 0 12px 32px rgba(20, 45, 38, 0.14);
+  --switch-off: #c7d5d0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Component display rules must never un-hide [hidden] elements. */
+[hidden] {
+  display: none !important;
+}
+
+html,
+body {
+  margin: 0;
+}
+
+body {
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text);
+  background:
+    radial-gradient(ellipse 80% 50% at 100% 0%, rgba(var(--accent-2-rgb), 0.08), transparent),
+    radial-gradient(ellipse 60% 40% at 0% 100%, rgba(var(--accent-rgb), 0.05), transparent),
+    var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+a {
+  color: var(--accent-2);
+}
+
+:focus-visible {
+  outline: 2px solid rgba(var(--accent-rgb), 0.6);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: rgba(var(--accent-rgb), 0.3);
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ---------- buttons ---------- */
+
+.icon-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-subtle);
+  color: var(--text);
+  border-radius: 9px;
+  cursor: pointer;
+  transition:
+    color 0.18s ease,
+    border-color 0.18s ease,
+    background-color 0.18s ease;
+}
+
+.icon-btn:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: rgba(var(--accent-rgb), 0.35);
+}
+
+.icon-btn[aria-pressed="true"] {
+  color: var(--accent);
+  background: var(--accent-dim);
+  border-color: rgba(var(--accent-rgb), 0.45);
+}
+
+.icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.icon-btn.ghost {
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.icon-btn.ghost:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text);
+  border-color: transparent;
+}
+
+.icon-btn.sm {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-subtle);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  text-decoration: none;
+  color: var(--text);
+  transition:
+    border-color 0.18s ease,
+    background-color 0.18s ease,
+    transform 0.12s ease,
+    filter 0.18s ease;
+}
+
+.btn:hover:not(:disabled) {
+  border-color: rgba(var(--accent-rgb), 0.4);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.btn.primary {
+  border-color: transparent;
+  background: var(--grad);
+  color: var(--accent-ink);
+}
+
+.btn.primary:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+.btn.danger {
+  color: var(--danger);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ---------- switch ---------- */
+
+.switch {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  width: 36px;
+  height: 21px;
+}
+
+.switch input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  margin: 0;
+  cursor: pointer;
+  z-index: 1;
+}
+
+.switch .track {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: var(--switch-off);
+  transition: background-color 0.22s var(--ease);
+}
+
+.switch .track::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  transition: transform 0.26s var(--ease);
+}
+
+.switch input:checked + .track {
+  background: var(--accent);
+}
+
+.switch input:checked + .track::after {
+  transform: translateX(15px);
+}
+
+.switch input:focus-visible + .track {
+  outline: 2px solid rgba(var(--accent-rgb), 0.6);
+  outline-offset: 2px;
+}
+
+/* ---------- fields ---------- */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.field > span,
+.field > label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.input,
+.select,
+.textarea {
+  width: 100%;
+  min-height: 36px;
+  padding: 7px 11px;
+  border-radius: 10px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-subtle);
+  color: var(--text);
+  font-size: 0.82rem;
+  outline: none;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.textarea {
+  resize: vertical;
+  min-height: 80px;
+  line-height: 1.5;
+}
+
+.input:focus,
+.select:focus,
+.textarea:focus {
+  border-color: rgba(var(--accent-rgb), 0.5);
+  box-shadow: 0 0 0 1px rgba(var(--accent-rgb), 0.16);
+}
+
+.input.mono {
+  font-family: var(--mono);
+  font-size: 0.76rem;
+}
+
+/* ---------- small bits ---------- */
+
+.section-title {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: var(--accent-dim);
+  border: 1px solid rgba(var(--accent-rgb), 0.22);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+.pill.muted {
+  color: var(--text-muted);
+  background: var(--bg-subtle);
+  border-color: var(--border);
+}
+
+.pill.ok::before,
+.pill.bad::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.pill.bad {
+  color: var(--danger);
+  background: var(--danger-dim);
+  border-color: transparent;
+}
+
+.gradient-text {
+  background: var(--grad-text);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+kbd {
+  font-family: var(--mono);
+  font-size: 0.7em;
+  padding: 1px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  border-bottom-width: 2px;
+  background: var(--bg-subtle);
+  color: var(--text-muted);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ---------- dot frost (ChroMods header glass) ---------- */
+
+.frost {
+  --dot-cell: 8px;
+  --dot-core: 1.85px;
+  --dot-edge: 2.25px;
+  --frost-fade: linear-gradient(to bottom, #000 0%, #000 84%, rgba(0, 0, 0, 0.4) 93%, transparent 100%);
+  position: absolute;
+  inset: 0 0 -14px 0;
+  pointer-events: none;
+}
+
+.frost-dots,
+.frost-glass {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  -webkit-mask-size: var(--dot-cell) var(--dot-cell), 100% 100%;
+  mask-size: var(--dot-cell) var(--dot-cell), 100% 100%;
+  -webkit-mask-repeat: repeat, no-repeat;
+  mask-repeat: repeat, no-repeat;
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+}
+
+.frost-dots {
+  backdrop-filter: blur(6px) saturate(2.8) contrast(1.18) brightness(1.08);
+  -webkit-backdrop-filter: blur(6px) saturate(2.8) contrast(1.18) brightness(1.08);
+  -webkit-mask-image: radial-gradient(circle at center, #000 var(--dot-core), transparent var(--dot-edge)), var(--frost-fade);
+  mask-image: radial-gradient(circle at center, #000 var(--dot-core), transparent var(--dot-edge)), var(--frost-fade);
+}
+
+.frost-glass {
+  background: var(--glass);
+  backdrop-filter: blur(20px) saturate(1.12);
+  -webkit-backdrop-filter: blur(20px) saturate(1.12);
+  -webkit-mask-image: radial-gradient(circle at center, transparent var(--dot-core), #000 var(--dot-edge)), var(--frost-fade);
+  mask-image: radial-gradient(circle at center, transparent var(--dot-core), #000 var(--dot-edge)), var(--frost-fade);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,0 +1,75 @@
+<!--
+title: ChroMind docs
+nav: Overview
+group: Start here
+order: 1
+slug: index
+blurb: An AI side panel for Firefox and Chromium that uses the AI accounts you already have.
+-->
+<p>
+  ChroMind sits in your browser's sidebar (Firefox, Zen) or side panel (Chrome, Edge, Brave, Vivaldi, Arc). It reads the
+  page you're on and lets you ask about it, summarize it, translate it or explain any part of it, without copying
+  anything anywhere. It's a sibling of <a href="https://github.com/T3lluz/ChroMods">ChroMods</a> and shares its look.
+</p>
+
+<h2>Where the answers come from</h2>
+<p>ChroMind has no server and no account. It talks to the AI you choose, with your own login or your own server:</p>
+<div class="provider-grid">
+  <a class="provider-card" href="{{root}}docs/providers/#claude"><strong>Claude</strong><span>Your claude.ai login in this browser. Zero setup.</span></a>
+  <a class="provider-card" href="{{root}}docs/providers/#claude-code"><strong>Claude Code</strong><span>The <code>claude</code> CLI and your subscription, through ChroMind Bridge.</span></a>
+  <a class="provider-card" href="{{root}}docs/providers/#cursor"><strong>Cursor</strong><span>The <code>cursor-agent</code> CLI and your Cursor account, through the Bridge.</span></a>
+  <a class="provider-card" href="{{root}}docs/hermes/"><strong>Hermes Agent</strong><span>Your own Hermes server, with its memory and tools.</span></a>
+</div>
+<p>Anything that speaks the OpenAI chat API (Ollama, LM Studio, OpenRouter, vLLM) works too.</p>
+
+<div class="diagram" role="img" aria-label="ChroMind in the browser connects to claude.ai directly, to the claude and cursor-agent CLIs through ChroMind Bridge on your computer, and to your Hermes Agent server.">
+  <svg viewBox="0 0 760 270" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="dg" x1="0" x2="1"><stop offset="0" stop-color="#3ee6b0"/><stop offset="1" stop-color="#22d3ee"/></linearGradient>
+      <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10Z" style="fill:var(--text-faint)"/></marker>
+    </defs>
+    <rect x="10" y="85" width="200" height="100" rx="16" stroke="url(#dg)" stroke-width="1.6" style="fill:var(--bg-elevated)"/>
+    <text x="110" y="125" text-anchor="middle" font-size="16" font-weight="700" style="fill:var(--text)">ChroMind</text>
+    <text x="110" y="147" text-anchor="middle" font-size="12" style="fill:var(--text-muted)">side panel / sidebar</text>
+    <text x="110" y="165" text-anchor="middle" font-size="12" style="fill:var(--text-muted)">in your browser</text>
+
+    <rect x="300" y="14" width="190" height="56" rx="12" style="fill:var(--bg-elevated);stroke:var(--border-strong)"/>
+    <text x="395" y="38" text-anchor="middle" font-size="14" font-weight="650" style="fill:var(--text)">claude.ai</text>
+    <text x="395" y="57" text-anchor="middle" font-size="11.5" style="fill:var(--text-muted)">your login (cookies)</text>
+
+    <rect x="300" y="107" width="190" height="56" rx="12" style="fill:var(--bg-elevated);stroke:var(--border-strong)"/>
+    <text x="395" y="131" text-anchor="middle" font-size="14" font-weight="650" style="fill:var(--text)">ChroMind Bridge</text>
+    <text x="395" y="150" text-anchor="middle" font-size="11.5" style="fill:var(--text-muted)">127.0.0.1:8765</text>
+
+    <rect x="300" y="200" width="190" height="56" rx="12" style="fill:var(--bg-elevated);stroke:var(--border-strong)"/>
+    <text x="395" y="224" text-anchor="middle" font-size="14" font-weight="650" style="fill:var(--text)">Hermes Agent</text>
+    <text x="395" y="243" text-anchor="middle" font-size="11.5" style="fill:var(--text-muted)">your server, :8642</text>
+
+    <rect x="570" y="80" width="180" height="44" rx="11" style="fill:var(--bg-subtle);stroke:var(--border)"/>
+    <text x="660" y="107" text-anchor="middle" font-size="13" font-weight="600" style="fill:var(--text)">claude CLI</text>
+    <rect x="570" y="146" width="180" height="44" rx="11" style="fill:var(--bg-subtle);stroke:var(--border)"/>
+    <text x="660" y="173" text-anchor="middle" font-size="13" font-weight="600" style="fill:var(--text)">cursor-agent CLI</text>
+
+    <path d="M210 115 C255 115 255 42 296 42" fill="none" stroke-width="1.5" marker-end="url(#arrow)" style="stroke:var(--text-faint)"/>
+    <path d="M210 135 L296 135" fill="none" stroke-width="1.5" marker-end="url(#arrow)" style="stroke:var(--text-faint)"/>
+    <path d="M210 155 C255 155 255 228 296 228" fill="none" stroke-width="1.5" marker-end="url(#arrow)" style="stroke:var(--text-faint)"/>
+    <path d="M490 128 C530 128 530 102 566 102" fill="none" stroke-width="1.5" marker-end="url(#arrow)" style="stroke:var(--text-faint)"/>
+    <path d="M490 142 C530 142 530 168 566 168" fill="none" stroke-width="1.5" marker-end="url(#arrow)" style="stroke:var(--text-faint)"/>
+  </svg>
+</div>
+
+<h2>What you can do</h2>
+<ul>
+  <li><strong>Ask about the page.</strong> The panel shows the tab it's reading. Ask anything; follow-ups keep the context.</li>
+  <li><strong>Quick actions.</strong> Summarize, key points, explain, ELI5, translate, simplify, fact-check, action items, suggested questions, and your own.</li>
+  <li><strong>Selection toolbar.</strong> Select text for Explain / Summarize / Translate / Ask, answered in a floating card.</li>
+  <li><strong>Right-click menus</strong> on pages, selections, links and images.</li>
+  <li><strong>YouTube transcripts</strong> with clickable <code>[mm:ss]</code> timestamps.</li>
+  <li><strong>Several tabs</strong> in one question, <strong>screenshots</strong>, <strong>chat history</strong> with search and Markdown export, read aloud.</li>
+  <li><strong>Address bar:</strong> type <code>cm</code>, a space, and your question.</li>
+</ul>
+
+<div class="callout tip">
+  <p class="callout-title">Start here</p>
+  <p><a href="{{root}}docs/install/">Install ChroMind</a>, then <a href="{{root}}docs/providers/">pick a provider</a>. With claude.ai you're done in a minute.</p>
+</div>

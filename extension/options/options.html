@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ChroMind settings</title>
+    <link rel="icon" href="../icons/icon.svg" />
+    <link rel="stylesheet" href="../styles/theme.css" />
+    <link rel="stylesheet" href="options.css" />
+    <script src="../lib/markdown.js"></script>
+    <script type="module" src="options.js"></script>
+  </head>
+  <body>
+    <header class="top">
+      <div class="frost" aria-hidden="true"><div class="frost-dots"></div><div class="frost-glass"></div></div>
+      <div class="top-inner">
+        <div class="brand">
+          <img src="../icons/icon.svg" width="34" height="34" alt="" />
+          <div>
+            <h1>ChroMind</h1>
+            <span class="pill" id="versionPill">v0.0.0</span>
+          </div>
+        </div>
+        <div class="top-actions">
+          <a class="btn" id="docsLink" href="https://t3lluz.github.io/ChroMind/docs/" target="_blank" rel="noopener"><span data-icon="book"></span>Docs</a>
+          <button type="button" class="icon-btn" id="themeBtn" title="Theme"><span data-icon="moon"></span></button>
+        </div>
+      </div>
+    </header>
+
+    <div class="layout">
+      <nav class="side" aria-label="Settings">
+        <a href="#welcome">Get started</a>
+        <a href="#providers">AI providers</a>
+        <a href="#bridge">Bridge</a>
+        <a href="#behavior">Behavior</a>
+        <a href="#actions">Quick actions</a>
+        <a href="#shortcuts">Shortcuts</a>
+        <a href="#data">Data &amp; privacy</a>
+      </nav>
+
+      <main class="content">
+        <section id="welcome" class="card hero">
+          <p class="eyebrow">Get started</p>
+          <h2>Your AI, right next to every page.</h2>
+          <p class="lede">
+            ChroMind uses the AI accounts you already have. Pick one below, then open the panel with
+            <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>A</kbd> or the toolbar button.
+          </p>
+          <ol class="steps">
+            <li>
+              <strong>Claude, zero setup.</strong> Signed in to <a href="https://claude.ai" target="_blank" rel="noopener">claude.ai</a> in
+              this browser? That's it. ChroMind chats through your own login.
+            </li>
+            <li>
+              <strong>Claude Code and Cursor</strong> go through <a href="#bridge">ChroMind Bridge</a>, a tiny local
+              helper that runs the <code>claude</code> and <code>cursor-agent</code> CLIs with your logins.
+            </li>
+            <li><strong>Hermes Agent</strong>: point ChroMind at your Hermes API server in <a href="#providers">AI providers</a>.</li>
+          </ol>
+          <div class="permission" id="permissionBox" hidden>
+            <p><span data-icon="shield"></span> ChroMind needs access to websites to read pages and reach claude.ai and your servers.</p>
+            <button type="button" class="btn primary" id="grantBtn">Allow access to websites</button>
+          </div>
+        </section>
+
+        <section id="providers" class="card">
+          <div class="card-head">
+            <h2 class="section-title"><span data-icon="spark"></span>AI providers</h2>
+            <p class="hint">The selected one answers by default. Switch any time from the pill in the panel.</p>
+          </div>
+          <div class="providers" id="providerList"></div>
+        </section>
+
+        <section id="bridge" class="card">
+          <div class="card-head">
+            <h2 class="section-title"><span data-icon="bridge"></span>ChroMind Bridge</h2>
+            <p class="hint">
+              Runs on your computer and lets ChroMind use the <code>claude</code> (Claude Code) and
+              <code>cursor-agent</code> CLIs with the accounts they are signed in to. Nothing leaves your machine except
+              the CLIs' own traffic.
+            </p>
+          </div>
+          <div class="bridge-status" id="bridgeStatus"><span class="pill muted">Checking…</span></div>
+          <div class="grid two">
+            <label class="field"><span>Bridge URL</span><input class="input mono" id="bridgeUrl" spellcheck="false" /></label>
+            <label class="field"><span>Token</span>
+              <div class="with-btn">
+                <input class="input mono" id="bridgeToken" type="password" spellcheck="false" placeholder="Printed by the bridge on start" />
+                <button type="button" class="icon-btn" data-reveal="bridgeToken" title="Show"><span data-icon="search"></span></button>
+              </div>
+            </label>
+          </div>
+          <div class="howto">
+            <p class="howto-title">Start it (Node 20+), from the ChroMind folder:</p>
+            <div class="cmd"><code>node bridge/chromind-bridge.mjs</code><button type="button" class="icon-btn sm ghost" data-copy="node bridge/chromind-bridge.mjs" title="Copy"><span data-icon="copy"></span></button></div>
+            <p class="howto-title">Start it with your computer:</p>
+            <div class="cmd"><code>node bridge/chromind-bridge.mjs install</code><button type="button" class="icon-btn sm ghost" data-copy="node bridge/chromind-bridge.mjs install" title="Copy"><span data-icon="copy"></span></button></div>
+            <p class="hint">
+              First time: sign the CLIs in once with <code>claude auth login</code> and <code>cursor-agent login</code>.
+              <a href="https://t3lluz.github.io/ChroMind/docs/bridge/" target="_blank" rel="noopener">Bridge guide</a>
+            </p>
+          </div>
+          <button type="button" class="btn" id="bridgeCheck"><span data-icon="refresh"></span>Check connection</button>
+        </section>
+
+        <section id="behavior" class="card">
+          <div class="card-head"><h2 class="section-title"><span data-icon="settings"></span>Behavior</h2></div>
+          <div class="grid two">
+            <label class="field"><span>Answer language</span>
+              <select class="select" id="language"></select>
+            </label>
+            <label class="field"><span>Translate to</span>
+              <select class="select" id="translateTo"></select>
+            </label>
+            <label class="field"><span>Theme</span>
+              <select class="select" id="theme">
+                <option value="system">Match browser</option>
+                <option value="dark">Dark</option>
+                <option value="light">Light</option>
+              </select>
+            </label>
+            <label class="field"><span>Max page length sent (characters)</span>
+              <input class="input" id="maxPageChars" type="number" min="4000" max="400000" step="1000" />
+            </label>
+          </div>
+          <div class="rows">
+            <label class="row"><span><strong>Send the page with questions</strong><small>The panel's Page switch starts on. You can still flip it per chat.</small></span>
+              <span class="switch"><input type="checkbox" id="pageContext" /><span class="track"></span></span></label>
+            <label class="row"><span><strong>Selection toolbar</strong><small>Show Explain / Summarize / Translate / Ask when you select text.</small></span>
+              <span class="switch"><input type="checkbox" id="selectionToolbar" /><span class="track"></span></span></label>
+            <label class="row"><span><strong>Enter sends</strong><small>Off: Ctrl+Enter sends and Enter adds a line.</small></span>
+              <span class="switch"><input type="checkbox" id="sendOnEnter" /><span class="track"></span></span></label>
+          </div>
+          <label class="field"><span>Sites without the selection toolbar (one per line)</span>
+            <textarea class="textarea mono" id="toolbarBlocklist" rows="3" placeholder="docs.google.com"></textarea>
+          </label>
+          <label class="field"><span>Extra instructions for every answer</span>
+            <textarea class="textarea" id="systemPrompt" rows="3" placeholder="e.g. I'm a software engineer in Norway. Prefer metric units."></textarea>
+          </label>
+        </section>
+
+        <section id="actions" class="card">
+          <div class="card-head">
+            <h2 class="section-title"><span data-icon="zap"></span>Quick actions</h2>
+            <p class="hint">
+              Your own actions show up in the panel, the <kbd>/</kbd> menu, right-click menus and the selection toolbar.
+              Use <code>{{target}}</code> (this page / the selected text / this video), <code>{{translateTo}}</code>,
+              <code>{{title}}</code> and <code>{{url}}</code>.
+            </p>
+          </div>
+          <div class="custom-actions" id="customActions"></div>
+          <button type="button" class="btn" id="addAction"><span data-icon="plus"></span>Add action</button>
+        </section>
+
+        <section id="shortcuts" class="card">
+          <div class="card-head"><h2 class="section-title"><span data-icon="keyboard"></span>Shortcuts</h2></div>
+          <div class="shortcut-list" id="shortcutList"></div>
+          <p class="hint">Also: type <kbd>cm</kbd> then <kbd>Space</kbd> in the address bar to ask from there.</p>
+          <button type="button" class="btn" id="shortcutBtn"><span data-icon="keyboard"></span>Change shortcuts</button>
+          <p class="hint" id="shortcutHint"></p>
+        </section>
+
+        <section id="data" class="card">
+          <div class="card-head">
+            <h2 class="section-title"><span data-icon="shield"></span>Data &amp; privacy</h2>
+            <p class="hint">
+              ChroMind has no server. Your questions and page text go only to the provider you pick. Chats and settings
+              stay in this browser.
+            </p>
+          </div>
+          <div class="rows">
+            <label class="row"><span><strong>Save chat history</strong><small>Stored on this device only.</small></span>
+              <span class="switch"><input type="checkbox" id="saveHistory" /><span class="track"></span></span></label>
+          </div>
+          <div class="btn-row">
+            <button type="button" class="btn" id="exportSettings"><span data-icon="download"></span>Export settings</button>
+            <label class="btn"><span data-icon="plus"></span>Import settings<input type="file" id="importSettings" accept="application/json" hidden /></label>
+            <button type="button" class="btn danger" id="clearHistory"><span data-icon="trash"></span>Delete chat history</button>
+          </div>
+        </section>
+
+        <footer class="foot">
+          ChroMind · MIT · <a href="https://github.com/T3lluz/ChroMind" target="_blank" rel="noopener">GitHub</a> ·
+          sibling of <a href="https://github.com/T3lluz/ChroMods" target="_blank" rel="noopener">ChroMods</a>
+        </footer>
+      </main>
+    </div>
+    <div class="toast" id="toast" role="status" hidden></div>
+  </body>
+</html>

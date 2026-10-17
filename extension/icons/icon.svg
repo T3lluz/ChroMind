@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="12" y1="8" x2="116" y2="120" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#22302d"/>
+      <stop offset="1" stop-color="#111a19"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.86" cy="0.14" r="0.7" gradientUnits="objectBoundingBox">
+      <stop stop-color="#22d3ee" stop-opacity="0.38"/>
+      <stop offset="1" stop-color="#22d3ee" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="accent" x1="8" y1="10" x2="118" y2="120" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#c4ffe9"/>
+      <stop offset="0.45" stop-color="#3ee6b0"/>
+      <stop offset="1" stop-color="#19c3e6"/>
+    </linearGradient>
+    <linearGradient id="spark" x1="78" y1="36" x2="122" y2="92" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f2fffa"/>
+      <stop offset="1" stop-color="#a6f6ff"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="url(#bg)"/>
+  <rect width="128" height="128" rx="28" fill="url(#glow)"/>
+  <rect x="0.75" y="0.75" width="126.5" height="126.5" rx="27.25" stroke="rgba(255,255,255,0.14)" stroke-width="1.5"/>
+  <path d="M88.34 39.45 A36 36 0 1 0 88.34 88.55" stroke="url(#accent)" stroke-width="34" stroke-linecap="butt" fill="none"/>
+  <path d="M100 38c1.8 16.4 7.6 22.2 24 24-16.4 1.8-22.2 7.6-24 24-1.8-16.4-7.6-22.2-24-24 16.4-1.8 22.2-7.6 24-24Z" fill="url(#spark)"/>
+  <circle cx="111" cy="30" r="5" fill="#3ee6b0"/>
+</svg>
