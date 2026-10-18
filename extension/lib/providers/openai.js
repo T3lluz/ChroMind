@@ -15,7 +15,8 @@ import { ProviderError } from './errors.js'
 export function endpoint(base, path, profile = '') {
   let root = String(base || '').trim().replace(/\/+$/, '')
   if (profile) root += `/p/${encodeURIComponent(profile)}`
-  if (!/\/v\d+$/.test(root)) root += '/v1'
+  // Already versioned: /v1, Gemini's /v1beta/openai.
+  if (!/\/v\d+(beta)?(\/openai)?$/.test(root)) root += '/v1'
   return root + path
 }
 
@@ -114,9 +115,17 @@ export async function sendOpenAI({ label, baseUrl, apiKey, profile, model, messa
   return {}
 }
 
-export async function listModels({ baseUrl, apiKey, profile }) {
-  const res = await fetch(endpoint(baseUrl, '/models', profile), { headers: authHeaders(apiKey) })
-  if (!res.ok) throw await failure(res, 'Server', baseUrl)
+export async function listModels({ baseUrl, apiKey, profile, headers = {} }) {
+  let res
+  try {
+    res = await fetch(endpoint(baseUrl, '/models', profile), {
+      headers: { ...authHeaders(apiKey), ...headers },
+      signal: AbortSignal.timeout(15000),
+    })
+  } catch {
+    throw new ProviderError(`Can't reach ${hostOf(baseUrl)}.`, { code: 'offline' })
+  }
+  if (!res.ok) throw await failure(res, hostOf(baseUrl), baseUrl)
   const json = await res.json()
   return (json.data ?? json.models ?? []).map((m) => (typeof m === 'string' ? m : m.id)).filter(Boolean)
 }

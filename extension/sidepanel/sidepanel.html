@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="../styles/markdown.css" />
     <link rel="stylesheet" href="sidepanel.css" />
     <script src="../lib/markdown.js"></script>
+    <script src="../lib/scanner.js"></script>
     <script src="../vendor/Readability.js"></script>
     <script type="module" src="sidepanel.js"></script>
   </head>
@@ -17,19 +18,18 @@
         <header class="app-header">
           <div class="frost" aria-hidden="true"><div class="frost-dots"></div><div class="frost-glass"></div></div>
           <div class="header-top">
-            <div class="brand">
-              <img src="../icons/icon.svg" width="28" height="28" alt="" />
-              <h1>ChroMind</h1>
-            </div>
-            <button type="button" class="provider-pill" id="providerBtn" aria-haspopup="menu" aria-expanded="false">
-              <span class="provider-dot"></span>
-              <span class="provider-name" id="providerName">Claude</span>
-              <span class="provider-model" id="providerModel"></span>
+            <img class="app-logo" src="../icons/icon.svg" width="26" height="26" alt="ChroMind" />
+            <button type="button" class="ai-pill" id="aiPill" aria-haspopup="dialog" aria-expanded="false" title="Choose the AI">
+              <span class="ai-pill-logo" id="aiLogo"></span>
+              <span class="ai-pill-text">
+                <span class="ai-pill-model" id="aiModel">Claude</span>
+                <span class="ai-pill-provider" id="aiProvider"></span>
+              </span>
               <span class="chev" data-icon="chevron"></span>
             </button>
             <div class="header-actions">
               <button type="button" class="icon-btn ghost" id="newChatBtn" title="New chat" data-icon="plus"></button>
-              <button type="button" class="icon-btn ghost" id="historyBtn" title="History" data-icon="history"></button>
+              <button type="button" class="icon-btn ghost" id="historyBtn" title="Chats" data-icon="history"></button>
               <button type="button" class="icon-btn ghost" id="settingsBtn" title="Settings" data-icon="settings"></button>
             </div>
           </div>
@@ -49,14 +49,8 @@
 
         <main>
           <section class="welcome" id="welcome">
-            <p class="hello">Hi! What should we <span class="gradient-text">dig into</span>?</p>
-            <p class="hello-sub" id="welcomeSub">Ask anything about this page, or start with an action.</p>
-            <div class="action-grid" id="actionGrid"></div>
-            <ul class="tips">
-              <li><span data-icon="zap"></span> Type <kbd>/</kbd> for actions like <code>/summarize</code></li>
-              <li><span data-icon="quote"></span> Select text on a page for the quick toolbar</li>
-              <li><span data-icon="keyboard"></span> <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd> summarizes the page</li>
-            </ul>
+            <p class="welcome-title" id="welcomeTitle">Ask about this page</p>
+            <div class="action-list" id="actionGrid"></div>
           </section>
           <div class="messages" id="messages" aria-live="polite"></div>
         </main>
@@ -66,9 +60,9 @@
         <div class="slash-menu" id="slashMenu" role="listbox" hidden></div>
         <div class="composer-box">
           <div class="attachments" id="attachments" hidden></div>
-          <textarea id="input" rows="1" placeholder="Ask about this page…" aria-label="Message"></textarea>
+          <textarea id="input" rows="1" placeholder="Ask about this page" aria-label="Message"></textarea>
           <div class="composer-row">
-            <button type="button" class="icon-btn sm ghost" id="actionsBtn" title="Actions ( / )" data-icon="zap"></button>
+            <button type="button" class="icon-btn sm ghost" id="actionsBtn" title="Actions (/)" data-icon="zap"></button>
             <button type="button" class="icon-btn sm ghost" id="shotBtn" title="Attach a screenshot of the page" data-icon="camera"></button>
             <span class="composer-status" id="composerStatus"></span>
             <button type="button" class="send-btn" id="sendBtn" title="Send" data-icon="send" disabled></button>
@@ -76,10 +70,22 @@
         </div>
       </footer>
 
-      <div class="popover" id="providerMenu" role="menu" hidden></div>
+      <div class="picker" id="picker" role="dialog" aria-label="Choose the AI" hidden>
+        <div class="picker-search">
+          <span data-icon="search"></span>
+          <input type="search" id="pickerSearch" placeholder="Search models" autocomplete="off" spellcheck="false" />
+        </div>
+        <div class="picker-body">
+          <nav class="picker-rail" id="pickerRail" aria-label="Providers"></nav>
+          <div class="picker-list" id="pickerList"></div>
+        </div>
+        <div class="picker-foot">
+          <button type="button" class="link-btn" id="pickerManage"><span data-icon="settings"></span>Providers and keys</button>
+        </div>
+      </div>
       <div class="popover" id="tabsMenu" role="menu" hidden></div>
 
-      <aside class="drawer" id="historyDrawer" aria-label="History" hidden>
+      <aside class="drawer" id="historyDrawer" aria-label="Chats" hidden>
         <div class="drawer-head">
           <div class="drawer-search">
             <span data-icon="search"></span>

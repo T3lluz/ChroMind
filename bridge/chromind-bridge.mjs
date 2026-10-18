@@ -1,58 +1,60 @@
 #!/usr/bin/env node
 /**
- * ChroMind Bridge: lets the ChroMind browser extension use the Claude Code
- * CLI (`claude`) and the Cursor CLI (`cursor-agent`) with the accounts they
- * are already signed in to. One file, no dependencies, Node 20+.
+ * ChroMind Bridge: an optional helper for the three AIs that only run as apps
+ * on your computer. ChroMind's other providers (Claude, your server, API keys)
+ * need none of this.
  *
- *   node chromind-bridge.mjs              start (prints the pairing token)
- *   node chromind-bridge.mjs token        print the token
+ *   Claude Code  the `claude` CLI, on your Claude subscription
+ *   Cursor       the `cursor-agent` CLI, on your Cursor plan
+ *   OpenCode     the `opencode` CLI, whose free models only answer the app itself
+ *
+ * One file, no dependencies, Node 20+.
+ *
+ *   node chromind-bridge.mjs              start
  *   node chromind-bridge.mjs install      start with your computer (Windows, macOS, Linux)
  *   node chromind-bridge.mjs uninstall    undo `install`
+ *   node chromind-bridge.mjs status       which CLIs it found
  *
  * It serves an OpenAI-compatible API on 127.0.0.1:8765:
  *
  *   GET  /health                public, { ok, name, version }
+ *   GET  /v1/pair               the token, for the extension to pair itself
  *   GET  /v1/status             CLIs found, versions, sign-in state, models
  *   GET  /v1/models
- *   POST /v1/server/test        SSH to user@host, tunnel to Hermes API, list models
- *   POST /v1/chat/completions   model "claude-code/<model>", "cursor/<model>",
- *                               or "hermes/<model>" (SSH tunnel; see headers below)
+ *   POST /v1/chat/completions   model "claude-code/opus@high", "cursor/<model>" or
+ *                               "opencode/<model>", streaming (SSE) or not
  *
- * Hermes over SSH (same login as TileSmith / DailyDash): the extension sends
- * X-ChroMind-Server (you@host), X-ChroMind-Server-Password, and optional
- * X-ChroMind-Api-Port (default 8642). The Bridge opens a local tunnel to the
- * server's Hermes API (127.0.0.1:8642), reads API_SERVER_KEY from
- * ~/.hermes/.env when needed, and proxies the chat stream.
+ * Every other /v1 call needs "Authorization: Bearer <token>"
+ * (~/.chromind/bridge.json). Requests from web pages are refused (they carry
+ * an http(s) Origin), and so is any Host but localhost (DNS rebinding).
  *
- * Every /v1 call needs "Authorization: Bearer <token>". The token lives in
- * ~/.chromind/bridge.json. Requests from web pages are refused (their
- * Origin is http/https); only the extension and local tools get in.
+ * Safety: page text is untrusted. Claude Code runs with every tool off,
+ * Cursor in read-only ask mode, OpenCode with every permission on "ask"
+ * (which a non-interactive run refuses), each in an empty scratch folder.
  *
- * Safety: page text is untrusted. Claude Code runs with every tool turned
- * off (--tools "") and Cursor in read-only ask mode, each in an empty
- * scratch folder, so a page can't make them run commands or edit files.
- *
- * Environment: CHROMIND_BRIDGE_PORT, CHROMIND_BRIDGE_HOST, CHROMIND_CLAUDE_BIN,
- * CHROMIND_CURSOR_BIN, CHROMIND_BRIDGE_TIMEOUT (seconds, default 300).
+ * Environment: CHROMIND_BRIDGE_PORT, CHROMIND_BRIDGE_HOST, CHROMIND_HOME,
+ * CHROMIND_CLAUDE_BIN, CHROMIND_CURSOR_BIN, CHROMIND_OPENCODE_BIN,
+ * CHROMIND_BRIDGE_TIMEOUT (seconds, default 300).
  */
 import { spawn, spawnSync } from 'node:child_process'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
-import { createServer as createNetServer, connect as netConnect } from 'node:net'
 import { homedir, platform, tmpdir } from 'node:os'
 import { delimiter, dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const VERSION = '0.2.0'
-const CONFIG_DIR = join(homedir(), '.chromind')
+const VERSION = '0.3.0'
+const CONFIG_DIR = process.env.CHROMIND_HOME || join(homedir(), '.chromind')
 const CONFIG = join(CONFIG_DIR, 'bridge.json')
 const IS_WIN = platform() === 'win32'
 const TIMEOUT_MS = (Number(process.env.CHROMIND_BRIDGE_TIMEOUT) || 300) * 1000
 const MAX_CONCURRENT = 3
-const MODEL_RE = /^[\w.:@\-/]{1,80}$/
+const MODEL_RE = /^[\w.:\-/]{1,100}$/
+const EFFORTS = { low: 'low', med: 'medium', medium: 'medium', high: 'high', xhigh: 'xhigh', max: 'max' }
 
-const CLAUDE_MODELS = ['sonnet', 'opus', 'haiku', 'fable']
+const CLAUDE_MODELS = ['opus', 'sonnet', 'haiku', 'fable']
+const OPENCODE_CONFIG = '{"permission":{"*":"ask"}}'
 
 /* ---------- config ---------- */
 
@@ -83,8 +85,8 @@ function which(names) {
     if (!dir) continue
     for (const name of names) {
       for (const ext of IS_WIN ? ['', ...exts] : exts) {
-        const path = join(dir, name + ext)
         if (ext === '' && IS_WIN && !/\.\w+$/.test(name)) continue
+        const path = join(dir, name + ext)
         if (existsSync(path)) return path
       }
     }
@@ -131,6 +133,21 @@ function resolveClaude() {
   return bin ? launcher(bin) : null
 }
 
+function resolveOpenCode() {
+  const home = homedir()
+  const extra = IS_WIN
+    ? [
+        join(home, '.opencode/bin/opencode.exe'),
+        join(process.env.APPDATA || join(home, 'AppData/Roaming'), 'npm/opencode.cmd'),
+        join(home, 'scoop/shims/opencode.exe'),
+        join(process.env.LOCALAPPDATA || join(home, 'AppData/Local'), 'Microsoft/WinGet/Links/opencode.exe'),
+        join(home, '.bun/bin/opencode.exe'),
+      ]
+    : [join(home, '.opencode/bin/opencode'), join(home, '.local/bin/opencode'), join(home, '.bun/bin/opencode'), '/usr/local/bin/opencode']
+  const bin = process.env.CHROMIND_OPENCODE_BIN || which(['opencode']) || extra.find(existsSync)
+  return bin ? launcher(bin) : null
+}
+
 function launcher(bin) {
   if (IS_WIN && /\.(cmd|bat)$/i.test(bin)) {
     return { cmd: process.env.ComSpec || 'cmd.exe', args: ['/d', '/s', '/c', bin], shell: true, label: bin }
@@ -166,19 +183,28 @@ function run(cli, args, { timeout = 20000 } = {}) {
 let statusCache = { at: 0, value: null }
 let statusRun = null
 
-/** Which CLIs exist, their versions, sign-in state and models (cached 30 s). */
-function cliStatus() {
-  if (statusCache.value && Date.now() - statusCache.at < 30_000) return Promise.resolve(statusCache.value)
-  statusRun ??= checkClis().finally(() => (statusRun = null))
-  return statusRun
+/**
+ * Which CLIs exist, their versions, sign-in state and models. Cursor's own
+ * checks take seconds, so after the first one this answers from the last
+ * result at once and refreshes in the background when it's over a minute old.
+ */
+function cliStatus({ fresh = false } = {}) {
+  const stale = Date.now() - statusCache.at > 60_000
+  if ((stale || fresh) && !statusRun) statusRun = checkClis().finally(() => (statusRun = null))
+  if (statusCache.value && !fresh) return Promise.resolve(statusCache.value)
+  return statusRun ?? Promise.resolve(statusCache.value)
 }
+
+const stripAnsi = (s) => String(s).replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, '')
 
 async function checkClis() {
   const claude = resolveClaude()
   const cursor = resolveCursor()
+  const opencode = resolveOpenCode()
   const providers = {
-    'claude-code': { installed: !!claude, models: CLAUDE_MODELS },
-    cursor: { installed: !!cursor, models: ['auto'] },
+    'claude-code': { installed: !!claude, models: CLAUDE_MODELS, hint: 'Run: claude auth login' },
+    cursor: { installed: !!cursor, models: ['auto'], hint: 'Run: cursor-agent login' },
+    opencode: { installed: !!opencode, models: [], hint: 'Free models need no sign-in' },
   }
   const checkClaude = async () => {
     const [v, auth] = await Promise.all([run(claude, ['--version']), run(claude, ['auth', 'status'])])
@@ -189,9 +215,7 @@ async function checkClis() {
     } catch {
       // older CLI: text output
     }
-    providers['claude-code'].loggedIn = json ? json.loggedIn ?? json.authMethod !== 'none' : auth.code === 0
-    providers['claude-code'].account = json?.email ?? json?.account?.email ?? ''
-    providers['claude-code'].hint = 'Run: claude auth login'
+    providers['claude-code'].loggedIn = json ? (json.loggedIn ?? json.authMethod !== 'none') : auth.code === 0
   }
   const checkCursor = async () => {
     const [v, status, models] = await Promise.all([
@@ -202,16 +226,19 @@ async function checkClis() {
     providers.cursor.version = v.out.split(/\s/)[0] || cursor.label.replace(/^cursor-agent /, '')
     const text = `${status.out}\n${status.err}`
     providers.cursor.loggedIn = status.code === 0 && !/not (logged|signed) in|login required/i.test(text)
-    providers.cursor.account = /logged in as\s+(\S+)/i.exec(text)?.[1] ?? ''
-    providers.cursor.hint = 'Run: cursor-agent login'
     const list = models.out
       .split('\n')
-      .map((l) => l.replace(/\x1b\[[0-9;]*m/g, '').trim())
+      .map((l) => stripAnsi(l).trim())
       .map((l) => /^([\w.\-]+)(\s|$)/.exec(l)?.[1])
-      .filter((m) => m && !/^(available|models?|current|default)$/i.test(m))
+      .filter((m) => m && !/^(available|models?|current|default|tip|note)$/i.test(m))
     if (list.length) providers.cursor.models = [...new Set(['auto', ...list])]
   }
-  await Promise.all([claude && checkClaude(), cursor && checkCursor()])
+  const checkOpenCode = async () => {
+    const v = await run(opencode, ['--version'])
+    providers.opencode.version = stripAnsi(v.out).split(/\s/)[0] || ''
+    providers.opencode.loggedIn = true
+  }
+  await Promise.all([claude && checkClaude(), cursor && checkCursor(), opencode && checkOpenCode()])
   statusCache = { at: Date.now(), value: providers }
   return providers
 }
@@ -243,24 +270,31 @@ function textOf(content) {
   return ''
 }
 
+/** "opus@high" → { model: "opus", effort: "high" }. */
+function splitDepth(sub) {
+  const [model, depth = ''] = String(sub).split('@')
+  return { model, effort: EFFORTS[depth] ?? '' }
+}
+
 /* ---------- running a chat ---------- */
 
 let running = 0
 
 /**
- * Spawns the CLI for MODEL ("claude-code/sonnet", "cursor/auto") and calls
- * ON(event) with { type: 'text' | 'reasoning' | 'tool', … }. Resolves when
- * the CLI exits. SIGNAL kills it.
+ * Spawns the CLI for MODEL ("claude-code/opus@high", "cursor/auto",
+ * "opencode/big-pickle") and calls ON(event) with { type: 'text' |
+ * 'reasoning' | 'tool', … }. Resolves when the CLI exits. SIGNAL kills it.
  */
 function runChat(model, messages, on, signal) {
-  const [provider, ...rest] = model.split('/')
-  const sub = rest.join('/') || ''
-  if (sub && !MODEL_RE.test(sub)) return Promise.reject(httpError(400, `Bad model name: ${sub}`))
+  const slash = model.indexOf('/')
+  const provider = slash < 0 ? model : model.slice(0, slash)
+  const sub = slash < 0 ? '' : model.slice(slash + 1)
+  if (sub && !MODEL_RE.test(sub.replace('@', '-'))) return Promise.reject(httpError(400, `Bad model name: ${sub}`))
   const { system, prompt } = flatten(messages)
   const work = join(tmpdir(), `chromind-${randomUUID()}`)
   mkdirSync(work, { recursive: true })
-  // Windows: the CLI can hold the folder for a moment after exiting. Never
-  // let a failed delete take the server down; try again later instead.
+  // Windows: a CLI can hold the folder for a moment after exiting. Never let
+  // a failed delete take the server down; try again later instead.
   const cleanup = (attempt = 0) => {
     try {
       rmSync(work, { recursive: true, force: true, maxRetries: 2, retryDelay: 150 })
@@ -272,10 +306,12 @@ function runChat(model, messages, on, signal) {
   let cli
   let args
   let input = null
+  let env = {}
   let parse
   if (provider === 'claude-code') {
     cli = resolveClaude()
-    if (!cli) return Promise.reject(httpError(503, 'Claude Code CLI not found. Install it: https://claude.com/claude-code'))
+    if (!cli) return Promise.reject(httpError(503, "Claude Code isn't installed on this computer. Get it at claude.com/claude-code."))
+    const { model: m, effort } = splitDepth(sub)
     writeFileSync(join(work, 'system.md'), system || 'You are a helpful assistant.')
     args = [
       '-p',
@@ -288,19 +324,23 @@ function runChat(model, messages, on, signal) {
       '--strict-mcp-config',
       '--disable-slash-commands',
       '--no-session-persistence',
-      ...(sub ? ['--model', sub] : []),
+      ...(m ? ['--model', m] : []),
+      ...(effort ? ['--effort', effort] : []),
     ]
     input = prompt
     parse = claudeParser(on)
   } else if (provider === 'cursor') {
     cli = resolveCursor()
-    if (!cli) return Promise.reject(httpError(503, 'Cursor CLI not found. Install it: https://cursor.com/cli'))
+    if (!cli) return Promise.reject(httpError(503, "The Cursor CLI isn't installed on this computer. Get it at cursor.com/cli."))
+    if (cli.shell) {
+      cleanup()
+      return Promise.reject(httpError(500, 'Set CHROMIND_CURSOR_BIN to the cursor-agent node launcher.'))
+    }
     const full = `${system ? `<instructions>\n${system}\n</instructions>\n\n` : ''}${prompt}`
     let positional = full
     if (full.length > (IS_WIN ? 24000 : 100000)) {
       writeFileSync(join(work, 'request.md'), full)
-      positional =
-        'The full request is in the file request.md in the current workspace. Read it, then answer it directly. Do not mention the file.'
+      positional = 'The full request is in the file request.md in the current workspace. Read it, then answer it directly. Do not mention the file.'
     }
     args = [
       '-p',
@@ -313,20 +353,22 @@ function runChat(model, messages, on, signal) {
       positional,
     ]
     parse = cursorParser(on)
-  } else if (provider === 'hermes') {
-    return Promise.reject(httpError(400, 'Hermes chat is handled by the HTTP proxy, not the CLI runner.'))
+  } else if (provider === 'opencode') {
+    cli = resolveOpenCode()
+    if (!cli) return Promise.reject(httpError(503, "OpenCode isn't installed on this computer. Get it free at opencode.ai."))
+    const { model: m } = splitDepth(sub || 'big-pickle')
+    args = ['run', '-m', m.includes('/') ? m : `opencode/${m}`, '--format', 'json']
+    input = `${system ? `<instructions>\n${system}\n</instructions>\n\n` : ''}${prompt}\n\n(Answer in text. OpenCode's tools are off here.)`
+    env = { OPENCODE_CONFIG_CONTENT: OPENCODE_CONFIG }
+    parse = opencodeParser(on)
   } else {
-    return Promise.reject(httpError(404, `Unknown model ${model}. Use claude-code/<model>, cursor/<model> or hermes/<model>.`))
+    cleanup()
+    return Promise.reject(httpError(404, `Unknown model ${model}. Use claude-code/<model>, cursor/<model> or opencode/<model>.`))
   }
 
-  if (cli.shell && provider === 'cursor') {
-    // A .cmd launcher would put the prompt through cmd.exe quoting: refuse.
-    cleanup()
-    return Promise.reject(httpError(500, 'Set CHROMIND_CURSOR_BIN to the cursor-agent node launcher.'))
-  }
   if (running >= MAX_CONCURRENT) {
     cleanup()
-    return Promise.reject(httpError(429, 'Bridge is busy, try again in a moment.'))
+    return Promise.reject(httpError(429, 'The Bridge is busy, try again in a moment.'))
   }
 
   running++
@@ -335,7 +377,7 @@ function runChat(model, messages, on, signal) {
       cwd: work,
       windowsHide: true,
       shell: cli.shell ?? false,
-      env: { ...process.env, NO_COLOR: '1', CI: '1' },
+      env: { ...process.env, NO_COLOR: '1', CI: '1', ...env },
     })
     let stderr = ''
     let buffer = ''
@@ -355,7 +397,7 @@ function runChat(model, messages, on, signal) {
     }
     const timer = setTimeout(() => {
       child.kill()
-      finish(httpError(504, `The CLI took longer than ${TIMEOUT_MS / 1000}s.`))
+      finish(httpError(504, `No answer after ${TIMEOUT_MS / 1000} seconds.`))
     }, TIMEOUT_MS)
     signal?.addEventListener('abort', kill)
 
@@ -377,13 +419,16 @@ function runChat(model, messages, on, signal) {
       const failure = parse.error()
       if (failure) return finish(httpError(502, failure))
       if (code !== 0 && !parse.result().text) {
-        const detail = stderr.trim().split('\n').slice(-3).join(' ') || `exit code ${code}`
+        const detail = stripAnsi(stderr).trim().split('\n').slice(-3).join(' ') || `exit code ${code}`
+        const name = { 'claude-code': 'Claude Code', cursor: 'Cursor', opencode: 'OpenCode' }[provider]
         const hint = /log ?in|auth|unauthori[sz]ed|credential/i.test(detail)
           ? provider === 'cursor'
             ? ' Run: cursor-agent login'
-            : ' Run: claude auth login'
+            : provider === 'claude-code'
+              ? ' Run: claude auth login'
+              : ''
           : ''
-        return finish(httpError(502, `${provider === 'cursor' ? 'Cursor' : 'Claude Code'} failed: ${detail}.${hint}`))
+        return finish(httpError(502, `${name} failed: ${detail}.${hint}`))
       }
       finish()
     })
@@ -480,396 +525,37 @@ function cursorParser(on) {
   }
 }
 
-/* ---------- Hermes over SSH (user@host + password) ---------- */
-
-/**
- * Parses you@host[:port], matching extension/lib/server-address.js (SSH only).
- * Kept inline so this file stays a single downloadable unit.
- */
-function parseSshTarget(raw) {
-  let text = String(raw ?? '').trim()
-  if (!text) return { error: 'Enter an address like you@your-server.' }
-  if (text.toLowerCase().startsWith('ssh ')) text = text.slice(4).trim()
-  if (text.toLowerCase().startsWith('ssh://')) text = text.slice(6).replace(/\/+$/, '')
-
-  let port = null
-  const portFlag = /(?:^|\s)-p\s*(\d+)\b/.exec(text)
-  if (portFlag) {
-    port = Number(portFlag[1])
-    text = (text.slice(0, portFlag.index) + text.slice(portFlag.index + portFlag[0].length)).trim()
-  }
-
-  const at = text.lastIndexOf('@')
-  if (at <= 0) return { error: 'Add a user name, like you@hostname.' }
-  const user = text.slice(0, at).trim()
-  let hostPart = text.slice(at + 1).trim()
-  if (!user) return { error: 'Add a user name, like you@hostname.' }
-  if (!/^[A-Za-z0-9._-]+$/.test(user)) return { error: 'That user name has characters SSH will not accept.' }
-
-  let host
-  if (hostPart.startsWith('[')) {
-    const close = hostPart.indexOf(']')
-    if (close < 1) return { error: 'Missing ] in IPv6 address.' }
-    host = hostPart.slice(1, close)
-    const rest = hostPart.slice(close + 1)
-    if (rest.startsWith(':')) port = Number(rest.slice(1))
-  } else if ((hostPart.match(/:/g) || []).length === 1) {
-    const [h, p] = hostPart.split(':')
-    host = h
-    port = Number(p)
-  } else {
-    host = hostPart
-  }
-  host = (host || '').trim().replace(/\.$/, '')
-  if (!host || /\s/.test(host)) return { error: 'That does not look like a hostname or IP address.' }
-  port = port ?? 22
-  if (!Number.isInteger(port) || port < 1 || port > 65535) return { error: 'Port must be between 1 and 65535.' }
-  const display = `${user}@${host.includes(':') ? `[${host}]` : host}${port === 22 ? '' : ':' + port}`
-  return { user, host, port, display }
-}
-
-function freeLocalPort() {
-  return new Promise((resolvePort, reject) => {
-    const server = createNetServer()
-    server.listen(0, '127.0.0.1', () => {
-      const { port } = server.address()
-      server.close((err) => (err ? reject(err) : resolvePort(port)))
-    })
-    server.on('error', reject)
-  })
-}
-
-function waitForLocalPort(port, timeoutMs = 12_000) {
-  const start = Date.now()
-  return new Promise((resolveReady, reject) => {
-    const tryOnce = () => {
-      const socket = netConnect({ host: '127.0.0.1', port }, () => {
-        socket.end()
-        resolveReady()
-      })
-      socket.on('error', () => {
-        socket.destroy()
-        if (Date.now() - start > timeoutMs) reject(new Error('SSH tunnel did not open in time.'))
-        else setTimeout(tryOnce, 150)
-      })
-    }
-    tryOnce()
-  })
-}
-
-function writeAskPass(password) {
-  mkdirSync(CONFIG_DIR, { recursive: true })
-  if (IS_WIN) {
-    const path = join(CONFIG_DIR, `askpass-${randomBytes(6).toString('hex')}.cmd`)
-    // cmd echo: caret-escape specials; keep the password on one line.
-    const escaped = String(password).replace(/([&<>|^])/g, '^$1')
-    writeFileSync(path, `@echo off\r\necho ${escaped}\r\n`, { mode: 0o600 })
-    return path
-  }
-  const path = join(CONFIG_DIR, `askpass-${randomBytes(6).toString('hex')}.sh`)
-  writeFileSync(path, `#!/bin/sh\nprintf '%s\\n' ${JSON.stringify(String(password))}\n`, { mode: 0o700 })
-  return path
-}
-
-/** Active SSH tunnels keyed by "user@host:sshPort→apiPort". */
-const tunnels = new Map()
-
-function tunnelKey(target, apiPort) {
-  return `${target.user}@${target.host}:${target.port}->${apiPort}`
-}
-
-function stopTunnel(entry) {
-  try {
-    entry.child?.kill('SIGTERM')
-  } catch {
-    // already gone
-  }
-  if (entry.askpass) {
-    try {
-      rmSync(entry.askpass, { force: true })
-    } catch {
-      // ignore
-    }
-  }
-}
-
-async function ensureHermesTunnel({ address, password, apiPort = 8642 }) {
-  const target = parseSshTarget(address)
-  if (target.error) throw httpError(400, target.error)
-  if (!password) throw httpError(400, 'Enter the SSH password for the server.')
-
-  const key = tunnelKey(target, apiPort)
-  const existing = tunnels.get(key)
-  if (existing?.ready && existing.child && !existing.child.killed) {
-    existing.password = password
-    return existing
-  }
-  if (existing) {
-    stopTunnel(existing)
-    tunnels.delete(key)
-  }
-
-  const whichSsh = which(['ssh']) || (IS_WIN ? which(['ssh.exe']) : null)
-  if (!whichSsh) {
-    throw httpError(503, 'OpenSSH client (`ssh`) not found. Install it, then try again.')
-  }
-
-  const localPort = await freeLocalPort()
-  const askpass = writeAskPass(password)
-  const controlPath = join(CONFIG_DIR, `ssh-${randomBytes(8).toString('hex')}.sock`)
-  const args = [
-    '-N',
-    '-L',
-    `${localPort}:127.0.0.1:${apiPort}`,
-    '-o',
-    'BatchMode=no',
-    '-o',
-    'StrictHostKeyChecking=accept-new',
-    '-o',
-    'ExitOnForwardFailure=yes',
-    '-o',
-    'ServerAliveInterval=30',
-    '-o',
-    'ServerAliveCountMax=3',
-    '-o',
-    `ControlPath=${controlPath}`,
-    '-p',
-    String(target.port),
-    `${target.user}@${target.host}`,
-  ]
-
-  const child = spawn(whichSsh, args, {
-    windowsHide: true,
-    env: {
-      ...process.env,
-      SSH_ASKPASS: askpass,
-      SSH_ASKPASS_REQUIRE: 'force',
-      // ssh requires DISPLAY (or equivalent) before it will run askpass
-      DISPLAY: process.env.DISPLAY || process.env.WAYLAND_DISPLAY || ':0',
-      SSH_AUTH_SOCK: '', // prefer the typed password over a stuck agent
-    },
-    stdio: ['ignore', 'ignore', 'pipe'],
-  })
-
-  let stderr = ''
-  child.stderr.setEncoding('utf8')
-  child.stderr.on('data', (chunk) => {
-    stderr += chunk
-    if (stderr.length > 4000) stderr = stderr.slice(-4000)
-  })
-
-  const entry = {
-    key,
-    target,
-    apiPort,
-    localPort,
-    password,
-    apiKey: '',
-    models: ['hermes-agent'],
-    child,
-    askpass,
-    controlPath,
-    ready: false,
-  }
-  tunnels.set(key, entry)
-
-  const failed = await Promise.race([
-    waitForLocalPort(localPort).then(() => null),
-    new Promise((resolveFail) => {
-      child.on('exit', (code) => {
-        const detail = stderr.trim().split('\n').slice(-2).join(' ') || `ssh exited ${code}`
-        let message = `Couldn't SSH to ${target.display}: ${detail}`
-        if (/permission denied|authentication failed/i.test(detail)) {
-          message = `Wrong user name or password for ${target.display}.`
-        } else if (/connection refused|timed out|no route/i.test(detail)) {
-          message = `Couldn't reach ${target.host} on port ${target.port}. Is the server up (and on Tailscale)?`
-        }
-        resolveFail(httpError(502, message))
-      })
-      child.on('error', (err) => resolveFail(httpError(500, `Could not start ssh: ${err.message}`)))
-    }),
-  ])
-
-  if (failed) {
-    stopTunnel(entry)
-    tunnels.delete(key)
-    throw failed
-  }
-
-  entry.ready = true
-  child.on('exit', () => {
-    if (tunnels.get(key) === entry) tunnels.delete(key)
-    stopTunnel(entry)
-  })
-
-  entry.apiKey = await readRemoteHermesKey(entry).catch(() => '')
-  entry.models = await listHermesModelsViaTunnel(entry).catch(() => ['hermes-agent'])
-  return entry
-}
-
-/** One-shot ssh using the same askpass, to read ~/.hermes/.env on the server. */
-function sshExec(target, password, remoteCommand, { timeout = 20_000 } = {}) {
-  const whichSsh = which(['ssh']) || (IS_WIN ? which(['ssh.exe']) : null)
-  if (!whichSsh) return Promise.reject(httpError(503, 'OpenSSH client (`ssh`) not found.'))
-  const askpass = writeAskPass(password)
-  return new Promise((done, reject) => {
-    const child = spawn(
-      whichSsh,
-      [
-        '-o',
-        'BatchMode=no',
-        '-o',
-        'StrictHostKeyChecking=accept-new',
-        '-o',
-        'ServerAliveInterval=15',
-        '-p',
-        String(target.port),
-        `${target.user}@${target.host}`,
-        remoteCommand,
-      ],
-      {
-        windowsHide: true,
-        env: {
-          ...process.env,
-          SSH_ASKPASS: askpass,
-          SSH_ASKPASS_REQUIRE: 'force',
-          DISPLAY: process.env.DISPLAY || process.env.WAYLAND_DISPLAY || ':0',
-          SSH_AUTH_SOCK: '',
-        },
-        stdio: ['ignore', 'pipe', 'pipe'],
-      },
-    )
-    let out = ''
-    let err = ''
-    child.stdout.setEncoding('utf8')
-    child.stderr.setEncoding('utf8')
-    child.stdout.on('data', (d) => (out += d))
-    child.stderr.on('data', (d) => (err += d))
-    const timer = setTimeout(() => {
-      child.kill()
-      rmSync(askpass, { force: true })
-      reject(httpError(504, 'SSH command timed out.'))
-    }, timeout)
-    child.on('close', (code) => {
-      clearTimeout(timer)
-      rmSync(askpass, { force: true })
-      if (code !== 0) {
-        reject(httpError(502, err.trim().split('\n').slice(-2).join(' ') || `ssh exited ${code}`))
-      } else done(out.trim())
-    })
-    child.on('error', (e) => {
-      clearTimeout(timer)
-      rmSync(askpass, { force: true })
-      reject(httpError(500, e.message))
-    })
-  })
-}
-
-async function readRemoteHermesKey(entry) {
-  const script =
-    'set -e; f="$HOME/.hermes/.env"; [ -f "$f" ] || exit 0; ' +
-    'grep -E "^API_SERVER_KEY=" "$f" | tail -n1 | cut -d= -f2- | tr -d "\\r\\"\'"'
-  const key = await sshExec(entry.target, entry.password, script)
-  return key.trim()
-}
-
-async function listHermesModelsViaTunnel(entry) {
-  const headers = entry.apiKey ? { authorization: `Bearer ${entry.apiKey}` } : {}
-  const res = await fetch(`http://127.0.0.1:${entry.localPort}/v1/models`, { headers })
-  if (!res.ok) {
-    if (res.status === 401 || res.status === 403) {
-      throw httpError(502, 'Hermes rejected the API key. Check API_SERVER_KEY in ~/.hermes/.env on the server.')
-    }
-    throw httpError(502, `Hermes on the server answered ${res.status}. Is \`hermes gateway\` running?`)
-  }
-  const json = await res.json()
-  const models = (json.data ?? json.models ?? []).map((m) => (typeof m === 'string' ? m : m.id)).filter(Boolean)
-  return models.length ? models : ['hermes-agent']
-}
-
-async function testHermesServer({ address, password, apiPort = 8642 }) {
-  const entry = await ensureHermesTunnel({ address, password, apiPort })
+/** `opencode run --format json`: one event per line; text arrives per part. */
+function opencodeParser(on) {
+  let text = ''
+  let error = null
   return {
-    ok: true,
-    display: entry.target.display,
-    apiPort: entry.apiPort,
-    models: entry.models,
-    hasApiKey: Boolean(entry.apiKey),
+    line(line) {
+      let json
+      try {
+        json = JSON.parse(line)
+      } catch {
+        return
+      }
+      const part = json.part ?? {}
+      if (json.type === 'text' && part.text) {
+        const piece = text ? `\n\n${part.text}` : part.text
+        text += piece
+        on({ type: 'text', text: piece })
+      } else if (json.type === 'reasoning' && part.text) {
+        on({ type: 'reasoning', text: part.text })
+      } else if (json.type === 'tool_use') {
+        on({ type: 'tool', name: part.tool || 'tool' })
+      } else if (json.type === 'error') {
+        const message = json.error?.data?.message ?? json.error?.message ?? json.error?.name ?? 'unknown error'
+        error = /auth|api key|sign in|credit/i.test(message)
+          ? `OpenCode: ${message} Free models need no account; others need \`opencode auth login\`.`
+          : `OpenCode: ${message}`
+      }
+    },
+    error: () => error,
+    result: () => ({ text }),
   }
-}
-
-/**
- * Proxies an OpenAI chat completion to Hermes through the SSH tunnel.
- * Preserves SSE (including hermes.tool.* events).
- */
-async function proxyHermesChat(req, res, body, { address, password, apiPort, profile, sessionKey }) {
-  const entry = await ensureHermesTunnel({ address, password, apiPort })
-  if (!entry.apiKey) {
-    throw httpError(
-      502,
-      'Hermes is reachable but has no API_SERVER_KEY in ~/.hermes/.env on the server. Add one and restart `hermes gateway`.',
-    )
-  }
-
-  const model = String(body.model || 'hermes/hermes-agent').replace(/^hermes\//, '') || 'hermes-agent'
-  let path = '/v1/chat/completions'
-  if (profile) path = `/p/${encodeURIComponent(profile)}/v1/chat/completions`
-  const url = `http://127.0.0.1:${entry.localPort}${path}`
-
-  const headers = {
-    'content-type': 'application/json',
-    accept: body.stream === false ? 'application/json' : 'text/event-stream',
-    authorization: `Bearer ${entry.apiKey}`,
-  }
-  if (sessionKey) headers['x-hermes-session-key'] = sessionKey
-
-  const upstream = await fetch(url, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ ...body, model, stream: body.stream !== false }),
-  }).catch((err) => {
-    throw httpError(502, `Tunnel to Hermes failed: ${err.message}. Is \`hermes gateway\` running on the server?`)
-  })
-
-  if (!upstream.ok) {
-    const text = await upstream.text().catch(() => '')
-    let message = text.slice(0, 300)
-    try {
-      message = JSON.parse(text)?.error?.message || message
-    } catch {
-      // keep text
-    }
-    throw httpError(upstream.status === 401 ? 502 : upstream.status, message || `Hermes answered ${upstream.status}`)
-  }
-
-  const type = upstream.headers.get('content-type') || ''
-  if (!type.includes('event-stream') || body.stream === false) {
-    const json = await upstream.json()
-    return send(res, 200, json)
-  }
-
-  res.writeHead(200, {
-    'content-type': 'text/event-stream; charset=utf-8',
-    'cache-control': 'no-cache',
-    connection: 'keep-alive',
-    ...cors(req),
-  })
-
-  const reader = upstream.body.getReader()
-  const decoder = new TextDecoder()
-  req.on('close', () => {
-    try {
-      reader.cancel()
-    } catch {
-      // ignore
-    }
-  })
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    res.write(decoder.decode(value, { stream: true }))
-  }
-  res.end()
 }
 
 /* ---------- HTTP ---------- */
@@ -888,8 +574,7 @@ function cors(req) {
   return /^(chrome|moz)-extension:\/\//.test(origin)
     ? {
         'access-control-allow-origin': origin,
-        'access-control-allow-headers':
-          'authorization, content-type, x-hermes-session-key, x-chromind-server, x-chromind-server-password, x-chromind-api-port, x-chromind-hermes-profile',
+        'access-control-allow-headers': 'authorization, content-type',
         'access-control-allow-methods': 'GET, POST, OPTIONS',
         vary: 'origin',
       }
@@ -928,11 +613,17 @@ function authorized(req) {
   return diff === 0
 }
 
+/** Only loopback names: a rebinding attack arrives with its own hostname. */
+function localHost(req) {
+  const host = String(req.headers.host || '').replace(/:\d+$/, '').toLowerCase()
+  return ['127.0.0.1', 'localhost', '[::1]', '::1'].includes(host)
+}
+
 async function handle(req, res) {
   const url = new URL(req.url, 'http://bridge')
   const origin = req.headers.origin || ''
-  // Web pages may not use the bridge (DNS rebinding, drive-by requests).
   if (/^https?:\/\//.test(origin)) return send(res, 403, { error: { message: 'Web pages may not use ChroMind Bridge.' } })
+  if (!localHost(req)) return send(res, 403, { error: { message: 'Use http://127.0.0.1 to reach ChroMind Bridge.' } })
   if (req.method === 'OPTIONS') {
     res.writeHead(204, cors(req))
     return res.end()
@@ -940,23 +631,15 @@ async function handle(req, res) {
   if (url.pathname === '/health' || url.pathname === '/v1/health') {
     return send(res, 200, { ok: true, name: 'chromind-bridge', version: VERSION })
   }
+  if (req.method === 'GET' && url.pathname === '/v1/pair') {
+    // Anything that can read this can also read ~/.chromind/bridge.json; the
+    // token only keeps web pages out, and they never get past the checks above.
+    return send(res, 200, { token: getConfig().token, version: VERSION })
+  }
   if (!authorized(req)) return send(res, 401, { error: { message: 'Missing or wrong bridge token.' } })
 
   if (req.method === 'GET' && url.pathname === '/v1/status') {
-    const server = [...tunnels.values()]
-      .filter((t) => t.ready)
-      .map((t) => ({
-        display: t.target.display,
-        apiPort: t.apiPort,
-        models: t.models,
-        hasApiKey: Boolean(t.apiKey),
-      }))[0]
-    return send(res, 200, {
-      ok: true,
-      version: VERSION,
-      providers: await cliStatus(),
-      server: server ?? null,
-    })
+    return send(res, 200, { ok: true, version: VERSION, providers: await cliStatus({ fresh: url.searchParams.has('fresh') }) })
   }
   if (req.method === 'GET' && url.pathname === '/v1/models') {
     const status = await cliStatus()
@@ -964,31 +647,12 @@ async function handle(req, res) {
     for (const [id, p] of Object.entries(status)) {
       if (p.installed) for (const m of p.models) data.push({ id: `${id}/${m}`, object: 'model', owned_by: id })
     }
-    for (const t of tunnels.values()) {
-      if (!t.ready) continue
-      for (const m of t.models) data.push({ id: `hermes/${m}`, object: 'model', owned_by: 'hermes' })
-    }
     return send(res, 200, { object: 'list', data })
-  }
-  if (req.method === 'POST' && url.pathname === '/v1/server/test') {
-    const body = await readBody(req)
-    return send(res, 200, await testHermesServer(body))
   }
   if (req.method === 'POST' && url.pathname === '/v1/chat/completions') {
     const body = await readBody(req)
     if (!Array.isArray(body.messages) || !body.messages.length) throw httpError(400, 'messages is required')
     const model = String(body.model || 'claude-code/sonnet')
-
-    if (model.startsWith('hermes/') || model === 'hermes') {
-      const address = req.headers['x-chromind-server'] || body.server?.address
-      const password = req.headers['x-chromind-server-password'] || body.server?.password
-      const apiPort = Number(req.headers['x-chromind-api-port'] || body.server?.apiPort || 8642)
-      const profile = req.headers['x-chromind-hermes-profile'] || body.server?.profile || ''
-      const sessionKey = req.headers['x-hermes-session-key'] || ''
-      if (!address) throw httpError(400, 'Missing X-ChroMind-Server (you@host).')
-      return proxyHermesChat(req, res, body, { address, password, apiPort, profile, sessionKey })
-    }
-
     const id = `chatcmpl-${randomUUID()}`
     const created = Math.floor(Date.now() / 1000)
     const controller = new AbortController()
@@ -1042,7 +706,7 @@ async function handle(req, res) {
 }
 
 function serve() {
-  const { token, port, host } = getConfig()
+  const { port, host } = getConfig()
   const PORT = Number(process.env.CHROMIND_BRIDGE_PORT || port || 8765)
   const HOST = process.env.CHROMIND_BRIDGE_HOST || host || '127.0.0.1'
   const server = createServer((req, res) => {
@@ -1059,13 +723,15 @@ function serve() {
     throw err
   })
   server.listen(PORT, HOST, async () => {
-    console.log(`\n  ChroMind Bridge ${VERSION} on http://${HOST}:${PORT}\n\n  Token: ${token}\n  Paste it in ChroMind → Settings → Bridge.\n\n  Checking the CLIs…`)
+    console.log(`\n  ChroMind Bridge ${VERSION} on http://${HOST}:${PORT}\n\n  Checking the apps on this computer…`)
     const status = await cliStatus()
     const line = (name, p) =>
       `  ${name.padEnd(12)} ${p.installed ? `${p.version || 'found'}${p.loggedIn === false ? '  (not signed in: ' + p.hint + ')' : ''}` : 'not found'}`
     console.log(line('Claude Code', status['claude-code']))
     console.log(line('Cursor', status.cursor))
-    console.log('\n  Ready. Leave this window open (or run "install" to start it with your computer).\n')
+    console.log(line('OpenCode', status.opencode))
+    console.log('\n  Ready. ChroMind connects to it by itself. Leave this window open,')
+    console.log('  or run "node chromind-bridge.mjs install" to start it with your computer.\n')
   })
 }
 
@@ -1122,7 +788,6 @@ WantedBy=default.target
     spawnSync('systemctl', ['--user', 'enable', '--now', 'chromind-bridge'], { stdio: 'inherit' })
     console.log(`Installed and started: ${unit}`)
   }
-  console.log(`Token: ${getConfig().token}`)
 }
 
 function uninstall() {
@@ -1152,9 +817,9 @@ if (isMain) {
   else if (command === 'uninstall') uninstall()
   else if (command === 'status') cliStatus().then((s) => console.log(JSON.stringify(s, null, 2)))
   else if (command && command !== 'start') {
-    console.log('Usage: node chromind-bridge.mjs [start|token|status|install|uninstall]')
+    console.log('Usage: node chromind-bridge.mjs [start|status|install|uninstall]')
     process.exit(1)
   } else serve()
 }
 
-export { claudeParser, cursorParser, flatten, parseSshTarget }
+export { claudeParser, cursorParser, flatten, opencodeParser, splitDepth }

@@ -11,16 +11,18 @@ blurb: ChroMind has no server. Here's exactly what goes where.
   <thead><tr><th>Provider</th><th>Receives</th><th>Goes to</th></tr></thead>
   <tbody>
     <tr><td>Claude</td><td>Your message, page text, screenshots</td><td>claude.ai, under your account</td></tr>
-    <tr><td>Claude Code, Cursor</td><td>The chat and page text</td><td>The Bridge on your computer, then Anthropic or Cursor through their CLIs</td></tr>
-    <tr><td>Hermes</td><td>The chat, page text, images</td><td>Your Hermes server (and whatever model it uses)</td></tr>
-    <tr><td>OpenAI-compatible</td><td>The chat, page text, images</td><td>The server you entered</td></tr>
+    <tr><td>Your server</td><td>The chat, page text, images</td><td>Your server (and whatever model it uses)</td></tr>
+    <tr><td>Claude Code, Cursor, OpenCode</td><td>The chat and page text</td><td>The Bridge on your computer, then Anthropic, Cursor or OpenCode through their apps</td></tr>
+    <tr><td>OpenRouter, Gemini, OpenAI, Groq</td><td>The chat, page text, images</td><td>That company's API, under your key</td></tr>
+    <tr><td>Local model</td><td>The chat, page text, images</td><td>The server you entered</td></tr>
   </tbody>
 </table>
 <p>Page text is read when you ask, not in the background. The Page switch in the panel turns it off per chat.</p>
 
 <h2>What stays in your browser</h2>
 <ul>
-  <li><strong>Settings</strong>, including server keys and the Bridge token: <code>storage.local</code>, never synced.</li>
+  <li><strong>Settings</strong>, including API keys, your server's password and the Bridge token: <code>storage.local</code>, never synced.</li>
+  <li><strong>Model lists</strong>, cached for six hours so the picker opens fast.</li>
   <li><strong>Chat history</strong>: <code>storage.local</code>, up to 300 chats. Turn it off or delete it in Settings → Data &amp; privacy.</li>
 </ul>
 
@@ -36,7 +38,7 @@ blurb: ChroMind has no server. Here's exactly what goes where.
 <table>
   <thead><tr><th>Permission</th><th>Why</th></tr></thead>
   <tbody>
-    <tr><td>Access to all websites</td><td>Read the page you ask about, reach claude.ai, the Bridge and your servers, show the selection toolbar</td></tr>
+    <tr><td>Access to all websites</td><td>Read the page you ask about, reach claude.ai, your server, the Bridge and the APIs you use, show the selection toolbar</td></tr>
     <tr><td>Side panel / sidebar</td><td>The panel itself</td></tr>
     <tr><td>Context menus</td><td>Right-click actions</td></tr>
     <tr><td>Scripting, active tab</td><td>Read page text and YouTube transcripts when you ask</td></tr>

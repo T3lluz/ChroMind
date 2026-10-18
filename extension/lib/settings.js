@@ -1,20 +1,25 @@
 import { api } from './browser.js'
 
 /**
- * Settings live in storage.local (never sync: they hold server keys and the
- * Bridge token). `get()` always returns a full object: stored values merged
- * over DEFAULTS, one level deep for the per-provider blocks.
+ * Settings live in storage.local (never sync: they hold keys and passwords).
+ * `getSettings()` always returns a full object: stored values merged over
+ * DEFAULTS, one level deep for the per-provider blocks. Each provider keeps
+ * its own model (and depth, as part of the model id: "opus@high").
  */
 export const DEFAULTS = {
   provider: 'claude-web',
   providers: {
     'claude-web': { model: '', keepHistory: true },
+    // server: what detectServer() found: { kind: 'dashboard' | 'hermes', base, label }
+    hermes: { address: '', password: '', server: null, model: '', profile: '', sessionKey: 'chromind' },
+    opencode: { model: 'big-pickle', zenKey: '' },
     'claude-code': { model: 'sonnet' },
     cursor: { model: 'auto' },
-    // address: user@host (SSH via Bridge) or http://127.0.0.1:8642 (direct).
-    // password: SSH password, or the Hermes API_SERVER_KEY for a direct URL.
-    hermes: { address: '', password: '', model: 'hermes-agent', profile: '', sessionKey: 'chromind', apiPort: 8642 },
-    custom: { name: 'Custom', baseUrl: 'http://127.0.0.1:11434', apiKey: '', model: '' },
+    openrouter: { apiKey: '', model: '' },
+    gemini: { apiKey: '', model: '' },
+    openai: { apiKey: '', model: '' },
+    groq: { apiKey: '', model: '' },
+    custom: { baseUrl: 'http://127.0.0.1:11434', apiKey: '', model: '' },
   },
   bridge: { url: 'http://127.0.0.1:8765', token: '' },
   /** 'auto' answers in the language the user writes in. */
@@ -40,19 +45,19 @@ export const DEFAULTS = {
 
 const KEY = 'settings'
 
-/** 0.1 stored hermes.baseUrl + apiKey; 0.2 uses address + password like TileSmith. */
+/**
+ * Older settings: 0.1 kept Hermes as baseUrl + apiKey, 0.2 as address +
+ * password through the Bridge (with apiPort). Both become address +
+ * password; the server is detected again on the next Connect.
+ */
 function migrateHermes(cfg = {}) {
   const next = { ...cfg }
-  if (!next.address && next.baseUrl) {
-    next.address = next.baseUrl
-    delete next.baseUrl
-  }
-  if (!next.password && next.apiKey) {
-    next.password = next.apiKey
-    delete next.apiKey
-  }
+  if (!next.address && next.baseUrl) next.address = next.baseUrl
+  if (!next.password && next.apiKey) next.password = next.apiKey
   delete next.baseUrl
   delete next.apiKey
+  delete next.apiPort
+  if (next.model === 'hermes-agent') next.model = ''
   return next
 }
 
@@ -84,7 +89,6 @@ export async function saveSettings(patch) {
       next.providers[id] = { ...(stored.providers?.[id] ?? {}), ...value }
     }
   }
-  if (next.providers?.hermes) next.providers.hermes = migrateHermes(next.providers.hermes)
   if (patch.bridge) next.bridge = { ...(stored.bridge ?? {}), ...patch.bridge }
   await api.storage.local.set({ [KEY]: next })
   return merge(next)

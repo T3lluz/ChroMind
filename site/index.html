@@ -1,12 +1,12 @@
 <main>
   <section class="hero">
     <div>
-      <span class="hero-badge"><span class="pill">New</span> Firefox, Zen and every Chromium browser · v{{version}}</span>
-      <h1>Your AI,<br><span class="gradient-text">next to every page.</span></h1>
+      <span class="hero-badge">Firefox, Zen and Chromium browsers · v{{version}}</span>
+      <h1>Ask about the page<br>you're on.</h1>
       <p class="sub">
-        ChroMind is a side panel that reads the page you're on and answers with the AI you already pay for:
-        your <strong>Claude</strong> login, <strong>Claude Code</strong> and <strong>Cursor</strong> through a tiny local
-        bridge, or your own <strong>Hermes Agent</strong> server.
+        ChroMind is a side panel that reads the current page and answers with the AI you already have: your
+        <strong>claude.ai</strong> login, <strong>your server</strong> running Hermes, <strong>OpenCode</strong>'s free
+        models, <strong>Claude Code</strong> and <strong>Cursor</strong> on your computer, or an API key.
       </p>
       <div class="cta">
         <a class="btn primary lg" href="{{root}}docs/install/" data-primary-cta>
@@ -15,7 +15,7 @@
         </a>
         <a class="btn lg" href="{{root}}docs/">Read the docs</a>
       </div>
-      <p class="cta-note">Free and open source. No account, no server of ours, no tracking.</p>
+      <p class="cta-note">Free and open source. No account and no tracking.</p>
     </div>
     <div class="hero-shot">
       <img src="{{root}}assets/screens/panel-answer.png" alt="ChroMind side panel summarizing a page" width="440" height="760">
@@ -24,18 +24,20 @@
 
   <div class="providers-strip">
     <span class="label">Answers with</span>
-    <span class="provider-chip"><i></i>Claude <small>claude.ai login</small></span>
-    <span class="provider-chip"><i></i>Claude Code <small>your subscription</small></span>
-    <span class="provider-chip"><i></i>Cursor <small>your account</small></span>
-    <span class="provider-chip"><i></i>Hermes Agent <small>your server</small></span>
-    <span class="provider-chip"><i></i>Ollama &amp; friends <small>OpenAI-compatible</small></span>
+    <span class="provider-chip"><img class="brand-logo" src="{{root}}assets/brands/claude.svg" alt="">Claude <small>claude.ai login</small></span>
+    <span class="provider-chip"><span class="brand-logo mono" style="--logo:url('{{root}}assets/brands/nousresearch.svg')" aria-hidden="true"></span>Hermes <small>your server</small></span>
+    <span class="provider-chip"><span class="brand-logo mono" style="--logo:url('{{root}}assets/brands/opencode.svg')" aria-hidden="true"></span>OpenCode <small>free models</small></span>
+    <span class="provider-chip"><span class="brand-logo mono" style="--logo:url('{{root}}assets/brands/cursor.svg')" aria-hidden="true"></span>Cursor <small>your plan</small></span>
+    <span class="provider-chip"><span class="brand-logo mono" style="--logo:url('{{root}}assets/brands/openrouter.svg')" aria-hidden="true"></span>OpenRouter <small>API key</small></span>
+    <span class="provider-chip"><img class="brand-logo" src="{{root}}assets/brands/gemini.svg" alt="">Gemini <small>API key</small></span>
+    <span class="provider-chip"><span class="brand-logo mono" style="--logo:url('{{root}}assets/brands/ollama.svg')" aria-hidden="true"></span>Ollama <small>local</small></span>
   </div>
 
   <section class="section">
     <div class="section-head">
       <p class="eyebrow">What it does</p>
-      <h2>The best bits of the AI sidebars, without the subscription.</h2>
-      <p>We looked at Sider, Monica, Merlin, HARPA, MaxAI and the built-in browser assistants, and kept what people actually use.</p>
+      <h2>What you'd want from an AI sidebar, without another subscription.</h2>
+      <p>Reading, summarizing and asking about pages, videos and selections, with whichever model you pick.</p>
     </div>
     <div class="features">
       <article class="feature">
@@ -50,13 +52,13 @@
       </article>
       <article class="feature">
         <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21c3 0 7-1 7-8V5H3v7h4c0 3-1 5-4 5Z"/><path d="M14 21c3 0 7-1 7-8V5h-7v7h4c0 3-1 5-4 5Z"/></svg></span>
-        <h3>Select, then ask</h3>
-        <p>Highlight text and a small bar offers Explain, Summarize, Translate or Ask. The answer floats right there.</p>
+        <h3>Select or right-click</h3>
+        <p>Highlight text for Explain, Summarize, Translate or Ask, answered in place. Right-click pages, links and images for the same.</p>
       </article>
       <article class="feature">
-        <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2.5"/><path d="M8 12h8M12 8v8"/></svg></span>
-        <h3>Right-click everything</h3>
-        <p>Pages, selections, links and images all get ChroMind actions. Summarize a link without opening it.</p>
+        <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h6"/><circle cx="18" cy="16" r="3"/></svg></span>
+        <h3>Any model, any depth</h3>
+        <p>One picker for every provider and model, with thinking depth from Low to Max. Switch between messages.</p>
       </article>
       <article class="feature">
         <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="15" height="14" rx="2.5"/><path d="m17 10 5-3v10l-5-3"/></svg></span>
@@ -74,13 +76,13 @@
   <section class="section">
     <div class="section-head">
       <p class="eyebrow">Looks like home</p>
-      <h2>Same glass as ChroMods, now in mint and cyan.</h2>
+      <h2>The ChroMods look, in mint and cyan.</h2>
       <p>Dark and light themes, a dot-frost header, and nothing in the way of the page.</p>
     </div>
     <div class="shots">
       <figure><img src="{{root}}assets/screens/panel-welcome.png" alt="Side panel with quick actions" loading="lazy"><figcaption>Quick actions for the page you're on</figcaption></figure>
       <figure><img src="{{root}}assets/screens/selection-card.png" alt="Selection toolbar answer card" loading="lazy"><figcaption>Select text, get an answer in place</figcaption></figure>
-      <figure><img src="{{root}}assets/screens/panel-light.png" alt="Side panel in light mode" loading="lazy"><figcaption>Light mode, provider switcher</figcaption></figure>
+      <figure><img src="{{root}}assets/screens/panel-light.png" alt="Side panel in light mode" loading="lazy"><figcaption>The AI picker, in light mode</figcaption></figure>
     </div>
   </section>
 
@@ -91,15 +93,15 @@
     </div>
     <div class="how">
       <div class="card-step"><span class="num">1</span><h3>Install</h3><p>One click in Firefox and Zen. In Chrome, Edge and Brave: unzip and Load unpacked.</p></div>
-      <div class="card-step"><span class="num">2</span><h3>Pick your AI</h3><p>Signed in to claude.ai? Done. Claude Code and Cursor need the bridge; Hermes needs its server URL.</p></div>
+      <div class="card-step"><span class="num">2</span><h3>Pick your AI</h3><p>Signed in to claude.ai? Done. Your server takes its address and password; an API key is one paste.</p></div>
       <div class="card-step"><span class="num">3</span><h3>Ask</h3><p><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>A</kbd> opens the panel. <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd> summarizes the page.</p></div>
     </div>
   </section>
 
   <section class="final-cta">
     <div class="final-cta-inner">
-      <h2>Ready when you are.</h2>
-      <p>Install ChroMind, then keep reading. It's right there in the sidebar.</p>
+      <h2>Try it on this page.</h2>
+      <p>Install ChroMind and ask it what this site is about.</p>
       <div class="cta">
         <a class="btn primary lg" href="{{root}}docs/install/" data-primary-cta><span data-label>Install ChroMind</span></a>
         <a class="btn lg" href="{{root}}docs/providers/">How the providers work</a>

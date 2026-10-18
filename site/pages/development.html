@@ -12,14 +12,18 @@ blurb: Run it from source in Firefox, Zen and Chrome, and ship signed Firefox bu
   options/            settings page
   content/selection.js  selection toolbar + answer card
   content/site.js     tells this site's install page the installed version
-  lib/providers/      claude.ai, OpenAI-compatible (Hermes, Bridge, custom)
+  lib/providers/      catalog (every provider), claude.ai, your server,
+                      the Bridge, OpenAI-compatible APIs
+  lib/models.js       model families and depths for the picker
+  lib/brands.js       maker logos (icons/brands, LobeHub Icons, MIT)
+  lib/scanner.js      the working indicator
   lib/extract.js      page text, YouTube transcripts, links, screenshots
   lib/markdown.js     safe Markdown renderer
   styles/theme.css    tokens shared with this site
 bridge/chromind-bridge.mjs   the Bridge (one file, no dependencies)
 scripts/              build, pack, sign, docs, icons, version
 site/                 this documentation
-tests/                node --test unit tests + Playwright smoke test</code></pre>
+tests/                node --test unit tests + Playwright end-to-end test</code></pre>
 
 <h2>Run from source</h2>
 <pre><code>npm install
@@ -92,7 +96,7 @@ gh secret set AMO_JWT_SECRET -R T3lluz/ChroMind</code></pre>
   add versions. Mozilla takes each version number once, so ship a Firefox update by bumping the version:
 </p>
 <pre><code>npm run release -- patch    # or minor, major, 1.2.3
-git commit -am "Release v0.1.1" &amp;&amp; git push</code></pre>
+git commit -am "Release v0.3.1" &amp;&amp; git push</code></pre>
 <p>
   If the version is already on AMO, the workflow downloads that signed build instead of uploading again. Installed copies
   pick up new versions through <code>update_url</code>
@@ -105,12 +109,14 @@ AMO_JWT_ISSUER=user:123:456 AMO_JWT_SECRET=… npm run sign:firefox</code></pre>
 
 <h2>Docs and screenshots</h2>
 <pre><code>npm run dev:site      # http://localhost:4173/ChroMind/
-npm run screenshots   # Playwright: loads the extension, refreshes site/assets/screens</code></pre>
+npm run screenshots   # Playwright: loads the extension, refreshes site/assets/screens
+npm run test:e2e      # the same run without screenshots; starts its own Bridge</code></pre>
 <p>Docs pages are plain HTML in <code>site/pages/</code> with a short front-matter comment for title, group and order.</p>
 
 <h2>Adding a provider</h2>
 <ol>
-  <li>Describe it in <code>PROVIDERS</code> and add a branch to <code>runChat()</code> and <code>testProvider()</code> in <code>lib/providers/index.js</code>.</li>
-  <li>Add defaults in <code>lib/settings.js</code> and fields in <code>options/options.js</code>.</li>
-  <li>If it's a CLI, add it to the Bridge instead: a <code>provider/model</code> prefix, a spawn branch and a stream parser.</li>
+  <li>Describe it in <code>PROVIDERS</code> in <code>lib/providers/catalog.js</code> (name, brand logo, access badge, blurb). An OpenAI-style API with a key needs only <code>baseUrl</code> and <code>keyUrl</code>.</li>
+  <li>Give it a branch in <code>loadModels()</code>, <code>isReady()</code> and <code>runChat()</code> in <code>lib/providers/index.js</code> if it's anything else.</li>
+  <li>Add defaults in <code>lib/settings.js</code>, and fields in <code>options/options.js</code> if it needs more than a key.</li>
+  <li>If it's an app on the computer, add it to the Bridge instead: a <code>provider/model</code> prefix, spawn arguments (never prompt text through a shell), a stream parser and status detection.</li>
 </ol>

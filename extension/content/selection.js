@@ -91,19 +91,18 @@ button { font: inherit; color: inherit; }
 .ask input { flex: 1; min-width: 0; height: 34px; padding: 0 11px; border-radius: 10px; border: 1px solid var(--border-strong);
   background: var(--subtle); color: var(--text); font: inherit; outline: none; }
 .ask input:focus { border-color: rgba(var(--accent-rgb),.5); }
-.ask button { width: 34px; height: 34px; border: 0; border-radius: 10px; background: var(--grad); color: var(--ink); cursor: pointer;
+.ask button { width: 34px; height: 34px; border: 0; border-radius: 10px; background: var(--accent); color: var(--ink); cursor: pointer;
   display: inline-flex; align-items: center; justify-content: center; }
 .body { flex: 1; min-height: 60px; overflow-y: auto; padding: 10px 14px 12px; }
-.waiting { display: inline-flex; gap: 4px; padding: 6px 0; }
-.waiting i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: pulse 1.2s ease-in-out infinite; }
-.waiting i:nth-child(2) { animation-delay: .15s; } .waiting i:nth-child(3) { animation-delay: .3s; background: var(--accent-2); }
+.waiting { display: inline-flex; align-items: center; gap: 10px; padding: 6px 0; color: var(--muted); font-size: 12px; }
+.waiting .cm-scanner { color: var(--accent); }
 .error { color: var(--danger); font-size: 12.5px; }
 .error a { color: var(--accent-2); }
 .foot { display: flex; align-items: center; gap: 4px; padding: 6px 8px; border-top: 1px solid var(--border); }
 .foot .btn { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--border-strong);
   background: var(--subtle); font-size: 12px; font-weight: 600; cursor: pointer; }
 .foot .btn:hover { border-color: rgba(var(--accent-rgb),.45); color: var(--accent); }
-.foot .btn.primary { background: var(--grad); color: var(--ink); border-color: transparent; }
+.foot .btn.primary { background: var(--accent); color: var(--ink); border-color: transparent; }
 .foot .hint { flex: 1; text-align: right; font-size: 11px; color: var(--muted); padding-right: 4px; }
 .md { font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
 .md > :first-child { margin-top: 0; } .md > :last-child { margin-bottom: 0; }
@@ -118,8 +117,6 @@ button { font: inherit; color: inherit; }
 .md a { color: var(--accent-2); } .md blockquote { margin: 0 0 .7em; padding-left: 10px; border-left: 3px solid rgba(var(--accent-rgb),.45); color: var(--muted); }
 .md table { border-collapse: collapse; font-size: 12px; } .md th, .md td { border: 1px solid var(--border); padding: 4px 8px; text-align: left; }
 .md .cm-table { overflow-x: auto; margin-bottom: .7em; }
-.streaming .md > :last-child::after { content: ""; display: inline-block; width: 7px; height: .95em; margin-left: 3px; vertical-align: -2px;
-  border-radius: 2px; background: var(--grad); animation: blink 1s steps(2) infinite; }
 @keyframes pop { from { opacity: 0; transform: translateY(4px) scale(.98); } }
 @keyframes blink { 50% { opacity: 0; } }
 @keyframes pulse { 0%,100% { transform: scale(.7); opacity: .5; } 50% { transform: scale(1); opacity: 1; } }
@@ -331,7 +328,8 @@ button { font: inherit; color: inherit; }
     const foot = card.querySelector('.foot')
     const sub = card.querySelector('.card-title small')
     body.hidden = false
-    out.innerHTML = '<div class="waiting"><i></i><i></i><i></i></div>'
+    out.innerHTML = '<div class="waiting"><span class="waiting-label">Working</span></div>'
+    out.querySelector('.waiting').prepend(globalThis.CMScanner.create({ size: 5, gap: 2 }))
     card.classList.add('streaming')
     let answer = ''
     let threadId = null
@@ -351,7 +349,10 @@ button { font: inherit; color: inherit; }
     const port = api.runtime.connect({ name: 'inline' })
     card._port = port
     port.onMessage.addListener((msg) => {
+      const label = out.querySelector('.waiting-label')
       if (msg.type === 'start') sub.textContent = `· ${msg.provider}`
+      else if (msg.type === 'reasoning' && label) label.textContent = 'Thinking'
+      else if (msg.type === 'tool' && label) label.textContent = `Using ${msg.name}`
       else if (msg.type === 'text') {
         answer += msg.text
         paint()

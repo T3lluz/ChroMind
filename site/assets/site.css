@@ -253,11 +253,10 @@ img {
   font-weight: 500;
 }
 
-.provider-chip i {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--grad);
+.provider-chip .brand-logo {
+  width: 18px;
+  height: 18px;
+  color: var(--text);
 }
 
 .section {

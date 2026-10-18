@@ -169,6 +169,8 @@ export function build() {
   mkdirSync(outDir, { recursive: true })
   cpSync(resolve(siteDir, 'assets'), resolve(outDir, 'assets'), { recursive: true })
   copyFileSync(resolve(root, 'extension/icons/icon.svg'), resolve(outDir, 'assets/icon.svg'))
+  // Makers' logos (LobeHub Icons, MIT) for the providers strip.
+  cpSync(resolve(root, 'extension/icons/brands'), resolve(outDir, 'assets/brands'), { recursive: true })
   // One theme for the extension and the site.
   copyFileSync(resolve(root, 'extension/styles/theme.css'), resolve(outDir, 'assets/theme.css'))
 

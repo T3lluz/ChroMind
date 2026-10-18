@@ -20,14 +20,6 @@ const API = `${ORIGIN}/api`
 const ROOT = '00000000-0000-4000-8000-000000000000'
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-export const CLAUDE_WEB_MODELS = [
-  { id: '', label: 'Account default' },
-  { id: 'claude-opus-5-5', label: 'Opus 5.5' },
-  { id: 'claude-sonnet-5-5', label: 'Sonnet 5.5' },
-  { id: 'claude-haiku-5-5', label: 'Haiku 5.5' },
-  { id: 'claude-fable-5-1', label: 'Fable 5.1' },
-]
-
 function call(path, init = {}) {
   return fetch(API + path, {
     credentials: 'include',

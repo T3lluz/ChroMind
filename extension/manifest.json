@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "ChroMind",
   "short_name": "ChroMind",
-  "version": "0.2.0",
-  "description": "AI side panel for any page. Ask, summarize and explain with your Claude and Cursor logins, or your own Hermes Agent server.",
+  "version": "0.3.0",
+  "description": "An AI side panel for any page. Use Claude, OpenCode's free models, your own server with Hermes, or your API keys.",
   "minimum_chrome_version": "116",
   "icons": {
     "16": "icons/icon16.png",
@@ -76,6 +76,7 @@
       ],
       "js": [
         "lib/markdown.js",
+        "lib/scanner.js",
         "content/selection.js"
       ],
       "run_at": "document_idle",

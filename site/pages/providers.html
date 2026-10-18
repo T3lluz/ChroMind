@@ -3,32 +3,45 @@ title: AI providers
 nav: AI providers
 group: Start here
 order: 3
-blurb: Use the AI accounts you already have. Pick a default in settings and switch any time from the panel.
+blurb: Use the AI you already have: your claude.ai login, your server, the apps on your computer, free models, or an API key.
 -->
 <p>
-  The pill at the top of the panel shows who's answering. Click it to switch provider or model for the next message.
-  The default lives in <strong>Settings → AI providers</strong>, where each one also has a <strong>Test</strong> button.
+  The pill at the top of the panel shows who's answering. Click it for the <strong>AI picker</strong>: providers down the
+  left, their models on the right, and depth chips under models that can think harder. Your pick is used for the next
+  message, and stays until you change it. Settings → <strong>AI</strong> has a card per provider with its setup and a
+  <strong>Test</strong> button.
 </p>
 
 <table>
-  <thead><tr><th>Provider</th><th>Signs in with</th><th>Setup</th><th>Images</th></tr></thead>
+  <thead><tr><th>Provider</th><th>Badge</th><th>Setup</th><th>Sees images</th></tr></thead>
   <tbody>
-    <tr><td><a href="#claude">Claude</a></td><td>claude.ai, in this browser</td><td>None</td><td>Yes</td></tr>
-    <tr><td><a href="#claude-code">Claude Code</a></td><td><code>claude auth login</code></td><td><a href="{{root}}docs/bridge/">Bridge</a></td><td>No</td></tr>
-    <tr><td><a href="#cursor">Cursor</a></td><td><code>cursor-agent login</code></td><td><a href="{{root}}docs/bridge/">Bridge</a></td><td>No</td></tr>
-    <tr><td><a href="{{root}}docs/hermes/">Hermes Agent</a></td><td>SSH <code>you@host</code> + password (or local URL + API key)</td><td><a href="{{root}}docs/bridge/">Bridge</a> for SSH</td><td>Yes</td></tr>
-    <tr><td><a href="#openai-compatible">OpenAI-compatible</a></td><td>Optional API key</td><td>Server URL + model</td><td>Model dependent</td></tr>
+    <tr><td><a href="#claude">Claude</a></td><td>Your account</td><td>Be signed in to claude.ai</td><td>Yes</td></tr>
+    <tr><td><a href="{{root}}docs/hermes/">Your server</a></td><td>Your server</td><td>Address + password</td><td>Yes</td></tr>
+    <tr><td><a href="#opencode">OpenCode</a></td><td>Free</td><td>OpenCode app + <a href="{{root}}docs/bridge/">Bridge</a>, or a Zen key</td><td>With a key</td></tr>
+    <tr><td><a href="#claude-code">Claude Code</a></td><td>App on this PC</td><td><a href="{{root}}docs/bridge/">Bridge</a></td><td>No</td></tr>
+    <tr><td><a href="#cursor">Cursor</a></td><td>App on this PC</td><td><a href="{{root}}docs/bridge/">Bridge</a></td><td>No</td></tr>
+    <tr><td><a href="#keys">OpenRouter, Gemini, OpenAI, Groq</a></td><td>API key</td><td>Paste a key</td><td>Most</td></tr>
+    <tr><td><a href="#local">Local model</a></td><td>Your URL</td><td>Server URL + model</td><td>Model dependent</td></tr>
   </tbody>
 </table>
 
+<h2 id="picker">The picker</h2>
+<ul>
+  <li><strong>Search</strong> filters every ready provider's models at once.</li>
+  <li>Providers that still need setup are dimmed; picking one shows what's missing and a button to set it up.</li>
+  <li>Each model shows its maker's logo, a <em>Free</em> badge when it costs nothing, and how many depths it has.</li>
+  <li><strong>Depth</strong> chips (Low, Medium, High, Extra high, Max, and Fast where the model has it) set how hard the model thinks. ChroMind remembers the depth per model.</li>
+  <li>Lists are cached for six hours; the refresh button next to a provider's name loads them again.</li>
+</ul>
+
 <h2 id="claude">Claude (claude.ai login)</h2>
 <p>
-  If you're signed in to <a href="https://claude.ai">claude.ai</a> in the same browser, ChroMind uses that login. Requests go
-  straight from the extension to claude.ai, like the web app, so it counts against your plan's usage the same way.
+  If you're signed in to <a href="https://claude.ai">claude.ai</a> in the same browser, ChroMind uses that login. Requests
+  go straight from the extension to claude.ai, like the web app, and count against your plan the same way.
 </p>
 <ul>
-  <li><strong>Model:</strong> <em>Account default</em> uses whatever claude.ai would. Paid plans can pick Opus 5.5, Sonnet 5.5, Haiku 5.5 or Fable 5.1.</li>
-  <li><strong>History:</strong> each ChroMind chat becomes one claude.ai conversation named <em>ChroMind · …</em>, so you can continue it on claude.ai (there's an <em>Open in claude.ai</em> link under each answer). Turn off <em>Keep ChroMind chats in my claude.ai history</em> and ChroMind asks for temporary chats and deletes them when you start a new chat or delete it from history.</li>
+  <li><strong>Model:</strong> <em>Claude</em> uses claude.ai's default. Paid plans can pick Opus 5.5, Sonnet 5.5, Haiku 5.5 or Fable 5.1.</li>
+  <li><strong>History:</strong> each ChroMind chat becomes one claude.ai conversation named <em>ChroMind · …</em>, with an <em>Open in claude.ai</em> link under each answer. Turn off <em>Keep ChroMind's chats in your claude.ai history</em> and they're temporary, deleted when you start a new chat.</li>
   <li><strong>Page text</strong> is sent as an attachment, so the conversation on claude.ai stays readable.</li>
 </ul>
 <div class="callout warn">
@@ -36,49 +49,71 @@ blurb: Use the AI accounts you already have. Pick a default in settings and swit
   <p>ChroMind shows <em>Sign in to claude.ai</em> with a button. If claude.ai shows a "checking your browser" page, open claude.ai in a tab once and try again.</p>
 </div>
 
-<h2 id="claude-code">Claude Code (via Bridge)</h2>
+<h2 id="server">Your server</h2>
 <p>
-  Uses the <a href="https://claude.com/claude-code">Claude Code</a> CLI with the account it's signed in to, so your Claude
-  Pro or Max subscription answers. It needs <a href="{{root}}docs/bridge/">ChroMind Bridge</a> running on your computer.
+  Hermes Agent, or your dashboard's models (Claude, Cursor and OpenCode on that machine), from the server's address and
+  password. See <a href="{{root}}docs/hermes/">Your server</a>.
+</p>
+
+<h2 id="opencode">OpenCode (free models)</h2>
+<p>
+  <a href="https://opencode.ai">OpenCode</a> has free models (<em>Big Pickle</em> and others marked <em>Free</em>). They
+  only answer through the OpenCode app, so ChroMind runs it through the <a href="{{root}}docs/bridge/">Bridge</a>; no
+  account needed.
 </p>
 <ul>
-  <li>Models: <code>sonnet</code>, <code>opus</code>, <code>haiku</code>, <code>fable</code> (the CLI's aliases).</li>
-  <li>The Bridge runs <code>claude -p</code> with <strong>all tools turned off</strong> in an empty scratch folder, with no session saved. It answers; it can't touch your files.</li>
+  <li>With an <a href="https://opencode.ai/auth">OpenCode Zen key</a> in its settings card, every Zen model answers directly, with no app or Bridge, and screenshots work.</li>
+  <li>The model list comes from OpenCode, so new free models show up by themselves.</li>
 </ul>
 
-<h2 id="cursor">Cursor (via Bridge)</h2>
+<h2 id="claude-code">Claude Code</h2>
 <p>
-  Uses the <a href="https://cursor.com/cli">Cursor CLI</a> (<code>cursor-agent</code>) with your Cursor account and its
-  model list: <em>Auto</em>, plus every model your plan has. Click <strong>Load models</strong> in settings to fill the list.
+  Uses the <a href="https://claude.com/claude-code">Claude Code</a> app with the account it's signed in to
+  (<code>claude auth login</code>), so your Claude Pro or Max plan answers. Needs the <a href="{{root}}docs/bridge/">Bridge</a>.
 </p>
 <ul>
-  <li>Runs in Cursor's read-only <code>ask</code> mode in an empty scratch folder.</li>
-  <li>Startup takes a few seconds per message; that's the CLI booting.</li>
+  <li>Opus, Sonnet, Haiku and Fable, each with five depths (Claude Code's <code>--effort</code>).</li>
+  <li>All tools are off and it runs in an empty scratch folder with no saved session. It answers; it can't touch your files.</li>
 </ul>
 
-<h2 id="hermes">Hermes Agent</h2>
+<h2 id="cursor">Cursor</h2>
 <p>
-  Connect like TileSmith / DailyDash: <code>you@your-server</code> and the SSH password. ChroMind Bridge tunnels to
-  Hermes on that machine so the API can stay on localhost. For Hermes on this PC, use
-  <code>http://127.0.0.1:8642</code> and put <code>API_SERVER_KEY</code> in Password. Tool use shows up as chips above the answer.
-  Full setup: <a href="{{root}}docs/hermes/">Connect Hermes</a>.
+  Uses the <a href="https://cursor.com/cli">Cursor CLI</a> (<code>cursor-agent login</code>) with your Cursor plan and its
+  model list: <em>Auto</em>, plus every model your plan has, grouped with their depths and Fast variants.
 </p>
+<ul>
+  <li>Runs in Cursor's read-only <em>ask</em> mode in an empty scratch folder.</li>
+  <li>The first answer takes a few seconds while the app starts.</li>
+</ul>
 
-<h2 id="openai-compatible">OpenAI-compatible servers</h2>
-<p>Anything with <code>/v1/chat/completions</code>:</p>
+<h2 id="keys">API keys</h2>
+<p>Paste a key in the provider's card (<strong>Get a key</strong> opens the right page). Keys stay in this browser.</p>
+<table>
+  <thead><tr><th>Provider</th><th>Good for</th></tr></thead>
+  <tbody>
+    <tr><td><a href="https://openrouter.ai/keys">OpenRouter</a></td><td>Hundreds of models with one key; free ones are marked <em>Free</em> and listed first</td></tr>
+    <tr><td><a href="https://aistudio.google.com/apikey">Gemini</a></td><td>Google AI Studio, with a free tier</td></tr>
+    <tr><td><a href="https://platform.openai.com/api-keys">OpenAI</a></td><td>GPT models</td></tr>
+    <tr><td><a href="https://console.groq.com/keys">Groq</a></td><td>Open models, very fast</td></tr>
+  </tbody>
+</table>
+<p>ChroMind lists only chat models (no embedding, image or audio models).</p>
+
+<h2 id="local">Local model</h2>
+<p>Anything with an OpenAI-style <code>/v1/chat/completions</code>:</p>
 <table>
   <thead><tr><th>Server</th><th>URL</th><th>Notes</th></tr></thead>
   <tbody>
     <tr><td>Ollama</td><td><code>http://127.0.0.1:11434</code></td><td>Model like <code>llama3.2</code>; vision models take screenshots</td></tr>
     <tr><td>LM Studio</td><td><code>http://127.0.0.1:1234</code></td><td>Start the local server in LM Studio</td></tr>
-    <tr><td>OpenRouter</td><td><code>https://openrouter.ai/api</code></td><td>Needs an API key</td></tr>
     <tr><td>vLLM, LiteLLM, llama.cpp</td><td>Your server</td><td>Any OpenAI-style endpoint</td></tr>
   </tbody>
 </table>
-<p>ChroMind adds <code>/v1</code> when the URL doesn't end in a version. <strong>Load models</strong> asks the server for its list.</p>
+<p>ChroMind adds <code>/v1</code> when the URL doesn't end in a version. <strong>Load</strong> asks the server for its models.</p>
 
 <h2>Switching mid-chat</h2>
 <p>
-  You can change provider between messages. Stateless providers (Bridge, Hermes, OpenAI-compatible) get the whole chat each
-  time. For Claude, ChroMind starts a claude.ai conversation and brings the earlier messages along.
+  You can change provider between messages. Most providers get the whole chat each time. For Claude, ChroMind starts a
+  claude.ai conversation and brings the earlier messages along. Each answer is labeled with the model and provider that
+  wrote it.
 </p>

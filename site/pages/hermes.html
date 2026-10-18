@@ -1,91 +1,90 @@
 <!--
-title: Connect Hermes Agent
-nav: Hermes Agent
+title: Your server (Hermes)
+nav: Your server
 group: Connect
-order: 2
-blurb: Use Hermes on your server with the same you@ip + password login as TileSmith and DailyDash.
+order: 1
+blurb: Type your server's address, and its password if it has one. ChroMind finds Hermes or your dashboard by itself.
 -->
 <p>
-  <a href="https://hermes-agent.nousresearch.com">Hermes Agent</a> by Nous Research runs on your machine (or a home server).
-  ChroMind connects the same way as <a href="https://github.com/T3lluz/TileSmith">TileSmith</a> and
-  <a href="https://github.com/T3lluz/DailyDash">DailyDash</a>: enter <code>you@your-server</code> and the SSH password.
-  <a href="{{root}}docs/bridge/">ChroMind Bridge</a> opens a private tunnel to Hermes' API on that machine — nothing needs to be exposed to the internet.
+  Settings → <strong>Your server</strong> has two fields, like DailyDash and TileSmith: the <strong>server</strong> and a
+  <strong>password</strong>. Click <strong>Connect</strong>, and ChroMind looks for what's running there:
+</p>
+<table>
+  <thead><tr><th>Found</th><th>What you get</th><th>Password</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>Your t3lluz dashboard (<code>/_api</code>)</td>
+      <td>Hermes' model, plus the Claude, Cursor and OpenCode logins on that machine, each with its depths</td>
+      <td>None (the dashboard is tailnet-only)</td>
+    </tr>
+    <tr>
+      <td><a href="https://hermes-agent.nousresearch.com">Hermes Agent</a>'s API server (port <code>8642</code>)</td>
+      <td>Hermes and its profiles, with tool use shown as it works</td>
+      <td>Hermes' <code>API_SERVER_KEY</code></td>
+    </tr>
+  </tbody>
+</table>
+<p>
+  The server field takes whatever you have at hand: <code>you@100.64.0.5</code>, <code>my-box</code>,
+  <code>t3lluz.com</code>, <code>http://192.168.1.20:8642</code>. The <code>you@</code> part and an SSH port are ignored:
+  a browser can't open SSH connections, so ChroMind talks to the server over HTTP, the same way DailyDash does.
 </p>
 
-<h2>On the server</h2>
+<h2>Hermes on its own</h2>
+<p>If the server runs Hermes without the dashboard, let its API server answer on the network:</p>
 <ol class="steps">
   <li>
-    <strong>Install and run Hermes</strong> with its API server on localhost:
+    <strong>In the server's <code>~/.hermes/.env</code>:</strong>
 <pre><code>API_SERVER_ENABLED=true
+API_SERVER_HOST=0.0.0.0
 API_SERVER_KEY=pick-a-long-random-key</code></pre>
-    in <code>~/.hermes/.env</code>, then:
-<pre><code>hermes gateway</code></pre>
-    It should log <code>API server listening on http://127.0.0.1:8642</code>. Generate a key with <code>openssl rand -hex 24</code>.
+    Make a key with <code>openssl rand -hex 24</code>. Then restart: <code>hermes gateway</code>.
   </li>
   <li>
-    <strong>Reach the box over SSH</strong> — Tailscale is the easy path (<code>100.x.y.z</code> or MagicDNS). You only need a normal SSH login; Hermes itself can stay bound to localhost.
+    <strong>Keep it private.</strong> Use Tailscale (<code>100.x.y.z</code> or MagicDNS) or your home network. Don't
+    forward port 8642 to the internet.
   </li>
-</ol>
-
-<h2>In ChroMind</h2>
-<ol class="steps">
-  <li><strong>Start ChroMind Bridge</strong> on this computer and paste its token under Settings → Bridge.</li>
   <li>
-    <strong>Settings → AI providers → Hermes Agent:</strong>
-    <table>
-      <thead><tr><th>Field</th><th>Value</th></tr></thead>
-      <tbody>
-        <tr><td>Address</td><td><code>you@100.x.y.z</code> (add <code>:port</code> if SSH is not on 22)</td></tr>
-        <tr><td>Password</td><td>Your SSH password</td></tr>
-        <tr><td>Model</td><td><code>hermes-agent</code>, or your profile name</td></tr>
-        <tr><td>Profile</td><td>Optional, for multi-profile setups (<code>/p/&lt;profile&gt;</code>)</td></tr>
-        <tr><td>Memory key</td><td>Sent as <code>X-Hermes-Session-Key</code> so Hermes scopes long-term memory to ChroMind</td></tr>
-      </tbody>
-    </table>
+    <strong>In ChroMind:</strong> the server's address, and the <code>API_SERVER_KEY</code> as the password (not your
+    SSH password). Click <strong>Connect</strong>.
   </li>
-  <li><strong>Click Test.</strong> The Bridge SSHs in, tunnels to <code>127.0.0.1:8642</code>, reads <code>API_SERVER_KEY</code> from the server's <code>~/.hermes/.env</code>, and lists models. Then pick Hermes from the pill in the panel.</li>
 </ol>
+<p>Hermes on this computer: use <code>127.0.0.1</code> as the server; <code>API_SERVER_HOST</code> can stay as it is.</p>
 
 <div class="callout tip">
-  <p class="callout-title">Same login as your other apps</p>
+  <p class="callout-title">"Nothing answered"?</p>
   <p>
-    Address is <code>user@host</code> or <code>user@host:port</code> — identical to TileSmith's Server page and DailyDash's server profiles.
-    The Bridge keeps the tunnel open while you chat so Hermes tool chips still stream through.
+    Hermes' API listens only on the server itself until you set <code>API_SERVER_HOST=0.0.0.0</code>. ChroMind shows that
+    line with a copy button when it can't reach anything. Also check that this computer is on the same tailnet or network.
   </p>
 </div>
 
-<h2>Hermes on this PC</h2>
-<p>
-  If Hermes runs on the same machine as the browser, you do not need SSH. Put the API URL in Address and the API key in Password:
-</p>
+<h2>Hermes options</h2>
+<p>Shown under the server once it's connected to Hermes:</p>
 <table>
-  <thead><tr><th>Field</th><th>Value</th></tr></thead>
+  <thead><tr><th>Option</th><th>Does</th></tr></thead>
   <tbody>
-    <tr><td>Address</td><td><code>http://127.0.0.1:8642</code></td></tr>
-    <tr><td>Password</td><td>Your <code>API_SERVER_KEY</code></td></tr>
+    <tr><td>Profile</td><td>Answers with a Hermes profile (<code>/p/&lt;profile&gt;</code>). Leave empty for the default.</td></tr>
+    <tr><td>Memory key</td><td>Sent as <code>X-Hermes-Session-Key</code> so Hermes keeps ChroMind's memory apart. Default <code>chromind</code>.</td></tr>
   </tbody>
 </table>
-<p>A bare host like <code>127.0.0.1</code> is treated as <code>http://127.0.0.1:8642</code>.</p>
-
-<div class="callout tip">
-  <p class="callout-title">No CORS setup needed</p>
-  <p>Requests come from the extension (or the Bridge), not a web page, so you don't need <code>API_SERVER_CORS_ORIGINS</code>. ChroMind also drops its Origin header on direct requests.</p>
-</div>
 
 <h2>Give ChroMind a safe profile</h2>
 <div class="callout warn">
   <p class="callout-title">Pages are untrusted</p>
   <p>
-    Unlike Claude Code / Cursor through the Bridge, Hermes keeps its tools, including terminal access if you enabled it. A web page you ask about
-    could contain text that tries to steer the agent. ChroMind marks page text as untrusted and tells the model to ignore
-    instructions inside it, but the safe setup is a Hermes <strong>profile for browsing</strong> with only the tools you
-    want here (web search, memory), and that profile name in ChroMind's Profile field.
+    Hermes keeps its tools, including a terminal if you enabled it. A page you ask about could contain text that tries
+    to steer the agent. ChroMind marks page text as untrusted and tells the model to ignore instructions in it, but the
+    safe setup is a Hermes <strong>profile for browsing</strong> with only the tools you want here (web search, memory),
+    named in the Profile option.
   </p>
 </div>
 
 <h2>What you'll see</h2>
 <ul>
-  <li>Tool calls appear as chips (<code>web_search</code>, <code>memory</code> …) above the answer while Hermes works.</li>
-  <li>Screenshots and images go to Hermes as image parts, if its model can see.</li>
+  <li>In the AI picker, <em>Your server</em> lists what it found. Dashboard models are grouped by where they come from (Claude, Cursor, OpenCode), with their depths.</li>
+  <li>Hermes' tool calls show in the working line (<em>Using web_search</em>) and as chips above the answer.</li>
+  <li>Screenshots go to Hermes as images, if its model can see.</li>
   <li>Each message carries the whole chat, so Hermes always has the conversation.</li>
+  <li>No CORS setup: requests come from the extension, not a web page, and carry no Origin header.</li>
 </ul>

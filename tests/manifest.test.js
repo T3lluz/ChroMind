@@ -90,8 +90,13 @@ test('zip writer round-trips', () => {
   }
 })
 
-test('extension files include the vendored Readability and no stray files', () => {
+test('extension files include the vendored Readability, the logos and no stray files', () => {
   const files = extensionFiles()
   assert.ok(files.includes('vendor/Readability.js'))
+  for (const brand of ['claude', 'cursor', 'opencode', 'nousresearch', 'openai', 'gemini', 'openrouter', 'groq', 'ollama']) {
+    assert.ok(files.includes(`icons/brands/${brand}.svg`), brand)
+  }
+  const selection = chromeManifest().content_scripts.find((c) => c.js.includes('content/selection.js'))
+  assert.deepEqual(selection.js, ['lib/markdown.js', 'lib/scanner.js', 'content/selection.js'])
   assert.ok(files.every((f) => !f.includes('node_modules')))
 })

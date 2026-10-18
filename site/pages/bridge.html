@@ -1,78 +1,89 @@
 <!--
 title: ChroMind Bridge
-nav: Bridge (Claude Code, Cursor)
+nav: Apps on this PC
 group: Connect
-order: 1
-blurb: A one-file local helper that lets ChroMind use the claude and cursor-agent CLIs with your logins.
+order: 2
+blurb: Optional. Lets ChroMind use Claude Code, Cursor and OpenCode's free models on this computer. One file, one command, pairs by itself.
 -->
 <p>
-  Browsers can't start programs, so Claude Code and Cursor answer through <strong>ChroMind Bridge</strong>: a single
-  Node.js file (no dependencies) that listens on <code>127.0.0.1:8765</code>, runs the CLI you pick for each message and
-  streams the answer back. Your logins stay inside the CLIs.
+  You only need the Bridge for the apps marked <em>App on this PC</em> in the picker: <strong>Claude Code</strong>,
+  <strong>Cursor</strong>, and <strong>OpenCode's free models</strong>. Everything else (claude.ai, your server, API keys,
+  local models) works without it.
+</p>
+<p>
+  Browsers can't start programs, so the Bridge does it for them: a single Node.js file with no dependencies that listens
+  on <code>127.0.0.1:8765</code>, runs the app you picked for each message and streams the answer back. Your logins stay
+  in the apps.
 </p>
 
 <h2>Set it up</h2>
 <ol class="steps">
   <li>
-    <strong>Have Node.js 20 or newer.</strong>
-    Check with <code>node -v</code>. Get it from <a href="https://nodejs.org">nodejs.org</a> if needed.
+    <strong>Have Node.js 20 or newer</strong> (<code>node -v</code>). Get it from <a href="https://nodejs.org">nodejs.org</a>.
   </li>
   <li>
-    <strong>Sign the CLIs in once</strong> (only the ones you want):
+    <strong>Sign in to the apps you want</strong>, once:
 <pre><code>claude auth login
 cursor-agent login</code></pre>
-    Don't have them? <a href="https://claude.com/claude-code">Install Claude Code</a> · <a href="https://cursor.com/cli">install the Cursor CLI</a>.
+    Don't have them? <a href="https://claude.com/claude-code">Claude Code</a> ·
+    <a href="https://cursor.com/cli">Cursor CLI</a> · <a href="https://opencode.ai">OpenCode</a> (free models need no sign-in).
   </li>
   <li>
-    <strong>Get the Bridge.</strong> It's <code>bridge/chromind-bridge.mjs</code> in the repository, or download
-    <a href="{{root}}chromind-bridge.mjs" download>chromind-bridge.mjs</a> into a folder you keep.
-  </li>
-  <li>
-    <strong>Start it:</strong>
-<pre><code>node chromind-bridge.mjs</code></pre>
-    It prints a <strong>token</strong> and which CLIs it found:
-<pre><code>  ChroMind Bridge 0.2.0 on http://127.0.0.1:8765
+    <strong>Download <a href="{{root}}chromind-bridge.mjs" download>chromind-bridge.mjs</a></strong> into a folder you keep,
+    and in that folder run:
+<pre><code>node chromind-bridge.mjs install</code></pre>
+    That starts it now and every time you sign in. <code>node chromind-bridge.mjs</code> on its own shows which apps it found:
+<pre><code>  ChroMind Bridge {{version}} on http://127.0.0.1:8765
 
-  Token: 3fQx…(32 characters)
-  Paste it in ChroMind → Settings → Bridge.
-
+  Checking the apps on this computer…
   Claude Code  2.1.288
-  Cursor       2026.10.16-e3cb207</code></pre>
+  Cursor       2026.10.16-e3cb207
+  OpenCode     1.4.2</code></pre>
   </li>
   <li>
-    <strong>Paste the token</strong> in ChroMind → Settings → Bridge. The status turns green and lists both CLIs. Then
-    pick Claude Code or Cursor from the pill in the panel.
+    <strong>That's it.</strong> ChroMind finds the Bridge and pairs with it by itself, no token to copy. Pick an app
+    from the AI pill in the panel.
   </li>
 </ol>
+<p>
+  Rather not install it? <code>node chromind-bridge.mjs</code> runs it until you close the window.
+  <code>node chromind-bridge.mjs uninstall</code> removes the startup entry.
+</p>
 
-<h2>Start it with your computer</h2>
-<pre><code>node chromind-bridge.mjs install</code></pre>
+<h2>What starts it</h2>
 <ul>
   <li><strong>Windows:</strong> a hidden starter in your Startup folder (<code>ChroMind Bridge.vbs</code>).</li>
   <li><strong>macOS:</strong> a LaunchAgent (<code>~/Library/LaunchAgents/com.chromind.bridge.plist</code>).</li>
   <li><strong>Linux:</strong> a systemd user service (<code>chromind-bridge</code>).</li>
 </ul>
-<p>Undo with <code>node chromind-bridge.mjs uninstall</code>. Other commands: <code>token</code> prints the token, <code>status</code> shows what it found.</p>
 
 <h2>How it keeps you safe</h2>
 <p>Web pages are untrusted text, and a page could try to tell the AI to do something. So the Bridge:</p>
 <ul>
-  <li>Listens on <code>127.0.0.1</code> only, and needs the token on every request.</li>
-  <li>Refuses any request from a web page (anything with an <code>http(s)://</code> Origin), so sites can't reach it.</li>
-  <li>Runs Claude Code with <strong>every tool off</strong> (<code>--tools ""</code>, no MCP servers, no slash commands, no saved session).</li>
-  <li>Runs Cursor in read-only <strong>ask</strong> mode.</li>
+  <li>Listens on <code>127.0.0.1</code> only, answers only requests addressed to <code>127.0.0.1</code> or <code>localhost</code>, and needs its token on every chat.</li>
+  <li>Refuses any request from a web page (anything with an <code>http(s)://</code> Origin), so sites can't reach it or pair with it.</li>
+  <li>Runs Claude Code with <strong>every tool off</strong> (no MCP servers, no slash commands, no saved session).</li>
+  <li>Runs Cursor in read-only <strong>ask</strong> mode, and OpenCode with every permission set to ask (so nothing runs).</li>
   <li>Runs each message in a fresh, empty scratch folder that's deleted afterwards.</li>
 </ul>
-<p>The token lives in <code>~/.chromind/bridge.json</code>. Delete that file and restart to get a new one.</p>
+<p>The token lives in <code>~/.chromind/bridge.json</code>. Delete the file and restart the Bridge for a new one; ChroMind pairs again.</p>
+
+<h2>Thinking depth</h2>
+<p>
+  Claude Code models come in five depths (Low to Max) in the picker, sent as Claude Code's <code>--effort</code>.
+  Cursor lists depths the way Cursor names its models (<code>…-high</code>, <code>…-max</code>, <code>-fast</code>).
+</p>
 
 <h2>Settings</h2>
 <table>
   <thead><tr><th>Environment variable</th><th>Default</th><th>Does</th></tr></thead>
   <tbody>
-    <tr><td><code>CHROMIND_BRIDGE_PORT</code></td><td><code>8765</code></td><td>Port (also <code>"port"</code> in bridge.json). Change the URL in ChroMind to match.</td></tr>
+    <tr><td><code>CHROMIND_BRIDGE_PORT</code></td><td><code>8765</code></td><td>Port. Change the Bridge URL under Settings → ChroMind Bridge to match.</td></tr>
     <tr><td><code>CHROMIND_BRIDGE_HOST</code></td><td><code>127.0.0.1</code></td><td>Bind address. Keep it local.</td></tr>
+    <tr><td><code>CHROMIND_HOME</code></td><td><code>~/.chromind</code></td><td>Where <code>bridge.json</code> lives</td></tr>
     <tr><td><code>CHROMIND_CLAUDE_BIN</code></td><td>found on PATH</td><td>Path to <code>claude</code></td></tr>
     <tr><td><code>CHROMIND_CURSOR_BIN</code></td><td>found automatically</td><td>Path to <code>cursor-agent</code></td></tr>
+    <tr><td><code>CHROMIND_OPENCODE_BIN</code></td><td>found automatically</td><td>Path to <code>opencode</code></td></tr>
     <tr><td><code>CHROMIND_BRIDGE_TIMEOUT</code></td><td><code>300</code></td><td>Seconds before a message gives up</td></tr>
   </tbody>
 </table>
@@ -82,22 +93,14 @@ cursor-agent login</code></pre>
 <pre><code>curl http://127.0.0.1:8765/v1/chat/completions \
   -H "Authorization: Bearer $(node chromind-bridge.mjs token)" \
   -H "Content-Type: application/json" \
-  -d '{"model":"claude-code/sonnet","stream":true,"messages":[{"role":"user","content":"Hi"}]}'</code></pre>
+  -d '{"model":"claude-code/sonnet@high","stream":true,"messages":[{"role":"user","content":"Hi"}]}'</code></pre>
 <table>
   <thead><tr><th>Endpoint</th><th>Returns</th></tr></thead>
   <tbody>
-    <tr><td><code>GET /health</code></td><td>Public liveness check</td></tr>
-    <tr><td><code>GET /v1/status</code></td><td>CLIs, versions, sign-in state, models; active Hermes SSH tunnel if any</td></tr>
-    <tr><td><code>GET /v1/models</code></td><td><code>claude-code/sonnet</code>, <code>cursor/auto</code>, <code>hermes/…</code>, …</td></tr>
-    <tr><td><code>POST /v1/server/test</code></td><td>SSH to <code>you@host</code>, open a tunnel to Hermes' API, return models</td></tr>
-    <tr><td><code>POST /v1/chat/completions</code></td><td>Streaming (SSE) or plain JSON. Thinking arrives as <code>reasoning_content</code>, tool use as <code>event: chromind.tool</code> (or Hermes' own tool events when model is <code>hermes/…</code>).</td></tr>
+    <tr><td><code>GET /health</code></td><td>Liveness check</td></tr>
+    <tr><td><code>GET /v1/pair</code></td><td>The token, for the extension (refused for web pages)</td></tr>
+    <tr><td><code>GET /v1/status</code></td><td>Apps, versions, sign-in state, models. <code>?fresh</code> checks again now.</td></tr>
+    <tr><td><code>GET /v1/models</code></td><td><code>claude-code/sonnet</code>, <code>cursor/auto</code>, <code>opencode/big-pickle</code>, …</td></tr>
+    <tr><td><code>POST /v1/chat/completions</code></td><td>Streaming (SSE) or plain JSON. Thinking arrives as <code>reasoning_content</code>, tool use as <code>event: chromind.tool</code>.</td></tr>
   </tbody>
 </table>
-
-<h2>Hermes on your server</h2>
-<p>
-  The same <code>you@ip</code> + password login as TileSmith and DailyDash. ChroMind sends
-  <code>X-ChroMind-Server</code> and <code>X-ChroMind-Server-Password</code>; the Bridge runs OpenSSH, forwards
-  <code>127.0.0.1:8642</code> from the server, reads <code>API_SERVER_KEY</code> from <code>~/.hermes/.env</code>, and
-  proxies the chat. See <a href="{{root}}docs/hermes/">Connect Hermes</a>.
-</p>

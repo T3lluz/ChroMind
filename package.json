@@ -1,9 +1,9 @@
 {
   "name": "chromind",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
-  "description": "AI side panel for Firefox and Chromium. Ask about any page with your Claude and Cursor logins, or your own Hermes Agent server.",
+  "description": "AI side panel for Firefox and Chromium. Ask about any page with the AI you already have: your Claude login, your server, OpenCode, Claude Code, Cursor or an API key.",
   "license": "MIT",
   "scripts": {
     "test": "node --test \"tests/*.test.js\"",

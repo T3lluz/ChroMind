@@ -1,8 +1,17 @@
+import { logo } from '../lib/brands.js'
 import { api, isFirefox, version } from '../lib/browser.js'
 import { clearThreads } from '../lib/history.js'
 import { icon } from '../lib/icons.js'
-import { CLAUDE_WEB_MODELS } from '../lib/providers/claude-web.js'
-import { bridgeStatus, fetchModels, PROVIDERS, testProvider } from '../lib/providers/index.js'
+import {
+  ACCESS,
+  bridgeApps,
+  detectServer,
+  getProvider,
+  isReady,
+  providerModels,
+  PROVIDERS,
+  testProvider,
+} from '../lib/providers/index.js'
 import { applyTheme, DEFAULTS, getSettings, saveSettings } from '../lib/settings.js'
 
 const $ = (id) => document.getElementById(id)
@@ -13,45 +22,6 @@ const LANGUAGES = [
   'Dutch', 'Polish', 'Ukrainian', 'Turkish', 'Arabic', 'Hindi', 'Japanese', 'Korean', 'Chinese (Simplified)',
   'Chinese (Traditional)',
 ]
-
-const PROVIDER_ICONS = { 'claude-web': 'spark', 'claude-code': 'bridge', cursor: 'bridge', hermes: 'server', custom: 'server' }
-
-const NOTES = {
-  'claude-web':
-    'Uses the claude.ai login in this browser, nothing else to set up. Chats appear in your claude.ai history as “ChroMind · …” unless you turn that off.',
-  'claude-code':
-    'Runs the Claude Code CLI on your computer through ChroMind Bridge, on your Claude subscription. Tools are switched off: it only answers.',
-  cursor:
-    'Runs the Cursor CLI (cursor-agent) through ChroMind Bridge, signed in with your Cursor account, in read-only ask mode.',
-  hermes:
-    'Same login as TileSmith and DailyDash: `you@your-server` and the SSH password. ChroMind Bridge opens a tunnel to Hermes on that machine (API on localhost:8642). For Hermes on this PC, use `http://127.0.0.1:8642` and put API_SERVER_KEY in Password instead. Page text is untrusted — prefer a browsing profile with limited tools.',
-  custom:
-    'Any /v1/chat/completions server: Ollama (http://127.0.0.1:11434), LM Studio (http://127.0.0.1:1234), OpenRouter (https://openrouter.ai/api).',
-}
-
-const FIELDS = {
-  'claude-web': [
-    { key: 'model', label: 'Model', type: 'select', options: CLAUDE_WEB_MODELS },
-    { key: 'keepHistory', label: 'Keep ChroMind chats in my claude.ai history', type: 'switch' },
-  ],
-  'claude-code': [
-    { key: 'model', label: 'Model', type: 'select', options: PROVIDERS.find((p) => p.id === 'claude-code').models },
-  ],
-  cursor: [{ key: 'model', label: 'Model', type: 'text', placeholder: 'auto', list: true }],
-  hermes: [
-    { key: 'address', label: 'Address', type: 'text', mono: true, placeholder: 'you@100.x.y.z or http://127.0.0.1:8642' },
-    { key: 'password', label: 'Password', type: 'password', mono: true, placeholder: 'SSH password (or API key for a URL)' },
-    { key: 'model', label: 'Model', type: 'text', placeholder: 'hermes-agent', list: true },
-    { key: 'profile', label: 'Profile (optional)', type: 'text', placeholder: 'browser' },
-    { key: 'sessionKey', label: 'Memory key', type: 'text', placeholder: 'chromind' },
-  ],
-  custom: [
-    { key: 'name', label: 'Name', type: 'text', placeholder: 'Ollama' },
-    { key: 'baseUrl', label: 'Server URL', type: 'text', mono: true, placeholder: 'http://127.0.0.1:11434' },
-    { key: 'apiKey', label: 'API key (if needed)', type: 'password', mono: true },
-    { key: 'model', label: 'Model', type: 'text', placeholder: 'llama3.2', list: true },
-  ],
-}
 
 let settings = null
 
@@ -70,6 +40,8 @@ function toast(text) {
   toastTimer = setTimeout(() => (el.hidden = true), 1800)
 }
 
+/* ---------- saving ---------- */
+
 /**
  * Debounced save. Patches pile up until the timer fires, so quick edits to
  * different fields all land: { providers }, { bridge }, and plain fields
@@ -82,6 +54,7 @@ function save(patch = {}, { quiet = false } = {}) {
     pendingPatch.providers ??= {}
     for (const [id, value] of Object.entries(patch.providers)) {
       pendingPatch.providers[id] = { ...pendingPatch.providers[id], ...value }
+      settings.providers[id] = { ...settings.providers[id], ...value }
     }
   }
   if (patch.bridge) {
@@ -100,6 +73,19 @@ function save(patch = {}, { quiet = false } = {}) {
     })
     if (!quiet) toast('Saved')
   }, 350)
+}
+
+async function flush() {
+  if (!saveTimer) return
+  clearTimeout(saveTimer)
+  saveTimer = 0
+  const { plain, providers, bridge } = pendingPatch
+  pendingPatch = {}
+  settings = await saveSettings({
+    ...(plain ? collectPlain() : {}),
+    ...(providers ? { providers } : {}),
+    ...(bridge ? { bridge } : {}),
+  })
 }
 
 function collectPlain() {
@@ -121,159 +107,257 @@ function collectPlain() {
   }
 }
 
-/* ---------- providers ---------- */
+/* ---------- provider cards ---------- */
 
-function fieldHTML(id, f, cfg) {
-  const value = cfg[f.key] ?? ''
-  const name = `${id}.${f.key}`
-  if (f.type === 'switch') {
-    return `<label class="row" style="border:1px solid var(--border);border-radius:12px"><span><strong>${esc(f.label)}</strong></span>
-      <span class="switch"><input type="checkbox" data-field="${name}" ${value !== false ? 'checked' : ''}><span class="track"></span></span></label>`
+function input(id, key, { label, type = 'text', placeholder = '', mono = false, value }) {
+  const val = value ?? settings.providers[id]?.[key] ?? ''
+  const field = `<input class="input${mono ? ' mono' : ''}" type="${type}" data-field="${id}.${key}" value="${esc(val)}" placeholder="${esc(placeholder)}" spellcheck="false" autocomplete="off">`
+  if (type === 'password') {
+    return `<label class="field"><span>${esc(label)}</span><div class="with-btn">${field}<button type="button" class="icon-btn" data-reveal title="Show" aria-label="Show">${icon('eye', 15)}</button></div></label>`
   }
-  if (f.type === 'select') {
-    return `<label class="field"><span>${esc(f.label)}</span><select class="select" data-field="${name}">${f.options
-      .map((o) => `<option value="${esc(o.id)}" ${o.id === value ? 'selected' : ''}>${esc(o.label)}</option>`)
-      .join('')}</select></label>`
+  return `<label class="field"><span>${esc(label)}</span>${field}</label>`
+}
+
+function bodyFor(p) {
+  const cfg = settings.providers[p.id] ?? {}
+  switch (p.id) {
+    case 'claude-web':
+      return `<label class="row compact"><span><strong>Keep ChroMind's chats in your claude.ai history</strong><small>Off: they're temporary and deleted when you start a new chat.</small></span>
+        <span class="switch"><input type="checkbox" data-field="claude-web.keepHistory" ${cfg.keepHistory !== false ? 'checked' : ''}><span class="track"></span></span></label>`
+    case 'hermes': {
+      const server = cfg.server
+      return `<div class="grid two">
+          ${input('hermes', 'address', { label: 'Server', placeholder: 'you@100.x.y.z or t3lluz.com', mono: true })}
+          ${input('hermes', 'password', { label: 'Password', type: 'password', placeholder: 'Only for Hermes: its API_SERVER_KEY' })}
+        </div>
+        <div class="connect-row">
+          <button type="button" class="btn primary" data-connect>${server ? 'Connect again' : 'Connect'}</button>
+          ${server ? `<button type="button" class="btn" data-forget>Forget</button>` : ''}
+          <span class="status" data-connect-status>${
+            server
+              ? `<span class="ok">${esc(server.kind === 'dashboard' ? `Your dashboard on ${server.label}` : `Hermes on ${server.label}`)}</span>`
+              : ''
+          }</span>
+        </div>
+        <div class="fix-box" data-fix hidden></div>
+        ${
+          server?.kind === 'hermes'
+            ? `<details class="advanced"><summary>Hermes options</summary><div class="grid two">
+                ${input('hermes', 'profile', { label: 'Profile (optional)', placeholder: 'browser' })}
+                ${input('hermes', 'sessionKey', { label: 'Memory key', placeholder: 'chromind' })}
+              </div></details>`
+            : ''
+        }`
+    }
+    case 'opencode':
+      return `${input('opencode', 'zenKey', { label: 'OpenCode Zen key (optional)', type: 'password', placeholder: 'Leave empty for the free models' })}
+        <p class="hint">${cfg.zenKey ? 'With a Zen key every OpenCode model answers directly, no app needed.' : "Without a key, OpenCode's free models answer through the OpenCode app on this computer (free to install) and ChroMind Bridge."}</p>`
+    case 'claude-code':
+      return `<p class="hint">Uses the Claude Code app, signed in with <code>claude auth login</code>, through <a href="#bridge">ChroMind Bridge</a>. Its tools are off: it only answers.</p>`
+    case 'cursor':
+      return `<p class="hint">Uses the Cursor app (<code>cursor-agent</code>), signed in with <code>cursor-agent login</code>, through <a href="#bridge">ChroMind Bridge</a>. Read-only.</p>`
+    case 'custom':
+      return `<div class="grid two">
+          ${input('custom', 'baseUrl', { label: 'Server URL', placeholder: 'http://127.0.0.1:11434', mono: true })}
+          ${input('custom', 'apiKey', { label: 'API key (if it needs one)', type: 'password' })}
+        </div>
+        <label class="field"><span>Model</span><div class="with-btn"><input class="input mono" data-field="custom.model" list="customModels" value="${esc(cfg.model ?? '')}" placeholder="llama3.2" spellcheck="false"><button type="button" class="btn" data-load-models>Load</button></div><datalist id="customModels"></datalist></label>`
+    default:
+      return input(p.id, 'apiKey', { label: 'API key', type: 'password', placeholder: 'Paste your key' })
   }
-  const list = f.list ? `list="list-${id}"` : ''
-  const input = `<input class="input${f.mono ? ' mono' : ''}" type="${f.type}" data-field="${name}" value="${esc(value)}" placeholder="${esc(f.placeholder ?? '')}" spellcheck="false" autocomplete="off" ${list}>`
-  if (f.type === 'password') {
-    return `<label class="field"><span>${esc(f.label)}</span><div class="with-btn">${input}<button type="button" class="icon-btn" data-reveal-field="${name}" title="Show">${icon('search', 15)}</button></div></label>`
-  }
-  return `<label class="field"><span>${esc(f.label)}</span>${input}${f.list ? `<datalist id="list-${id}"></datalist>` : ''}</label>`
+}
+
+function cardHTML(p) {
+  const inUse = settings.provider === p.id
+  const access = ACCESS[p.access]
+  const keyLink = p.keyUrl
+    ? `<a class="btn ghost" href="${p.keyUrl}" target="_blank" rel="noopener">${icon('external', 14)}Get a key</a>`
+    : p.id === 'claude-web'
+      ? `<a class="btn ghost" href="https://claude.ai/login" target="_blank" rel="noopener">${icon('external', 14)}Sign in</a>`
+      : ''
+  return `<article class="pcard${inUse ? ' in-use' : ''}" id="provider-${p.id}" data-provider="${p.id}">
+      <header class="pcard-head">
+        <span class="pcard-logo">${logo(p.brand, 22)}</span>
+        <div class="pcard-title"><strong>${esc(p.name)}</strong><span class="access access-${access.tone}">${esc(access.label)}</span></div>
+        <span class="pcard-state" data-state><span class="dot"></span><span>Checking</span></span>
+      </header>
+      <p class="pcard-blurb">${esc(p.blurb)}</p>
+      <div class="pcard-body">${bodyFor(p)}</div>
+      <footer class="pcard-foot">
+        ${inUse ? '<span class="in-use-tag">In use</span>' : `<button type="button" class="btn" data-use>Use</button>`}
+        <button type="button" class="btn ghost" data-test>Test</button>
+        ${keyLink}
+        <span class="status" data-status></span>
+      </footer>
+    </article>`
 }
 
 function renderProviders() {
-  $('providerList').innerHTML = PROVIDERS.map((p) => {
-    const cfg = settings.providers[p.id] ?? {}
-    const fields = FIELDS[p.id] ?? []
-    const wide = fields.length > 2 ? 'grid two' : 'grid'
-    const canFetch = fields.some((f) => f.list)
-    return `<article class="provider${settings.provider === p.id ? ' is-default' : ''}" data-provider="${p.id}">
-      <label class="provider-head">
-        <input type="radio" name="defaultProvider" value="${p.id}" ${settings.provider === p.id ? 'checked' : ''} aria-label="Use ${esc(p.name)} by default">
-        <span class="provider-icon">${icon(PROVIDER_ICONS[p.id], 18)}</span>
-        <span class="provider-copy"><strong>${esc(p.id === 'custom' && cfg.name ? cfg.name : p.name)}</strong><small>${esc(p.detail)}</small></span>
-        ${settings.provider === p.id ? '<span class="pill">Default</span>' : ''}
-      </label>
-      <div class="provider-body">
-        <p class="hint">${esc(NOTES[p.id]).replace(/`([^`]+)`/g, '<code>$1</code>')}</p>
-        <div class="${wide}">${fields.map((f) => fieldHTML(p.id, f, cfg)).join('')}</div>
-        <div class="provider-foot">
-          <button type="button" class="btn" data-test="${p.id}">${icon('check', 15)}Test</button>
-          ${canFetch ? `<button type="button" class="btn" data-fetch="${p.id}">${icon('refresh', 15)}Load models</button>` : ''}
-          ${p.id === 'claude-web' ? `<a class="btn" href="https://claude.ai/login" target="_blank" rel="noopener">${icon('external', 15)}Sign in to claude.ai</a>` : ''}
-          ${p.bridge ? `<a class="btn" href="#bridge">${icon('bridge', 15)}Bridge setup</a>` : ''}
-          <span class="status" data-status="${p.id}"></span>
-        </div>
-      </div>
-    </article>`
-  }).join('')
+  $('providerList').innerHTML = PROVIDERS.map(cardHTML).join('')
+  hydrateIcons($('providerList'))
+  refreshStates()
 }
 
-function setStatus(id, text, ok) {
-  const el = document.querySelector(`[data-status="${id}"]`)
-  if (!el) return
+async function refreshStates({ fresh = false } = {}) {
+  await Promise.all(
+    PROVIDERS.map(async (p) => {
+      const card = document.getElementById(`provider-${p.id}`)
+      const state = card?.querySelector('[data-state]')
+      if (!state) return
+      const { ready, note } = await isReady(p.id, settings, { fresh })
+      state.className = `pcard-state ${ready ? 'ready' : 'off'}`
+      state.innerHTML = `<span class="dot"></span><span>${esc(ready ? 'Ready' : note)}</span>`
+    }),
+  )
+}
+
+function setStatus(card, text, ok) {
+  const el = card.querySelector('[data-status]')
   el.textContent = text
   el.className = `status ${ok === true ? 'ok' : ok === false ? 'bad' : ''}`
 }
 
+async function connectServer(card) {
+  await flush()
+  const status = card.querySelector('[data-connect-status]')
+  const fixBox = card.querySelector('[data-fix]')
+  const button = card.querySelector('[data-connect]')
+  const { address, password } = settings.providers.hermes
+  fixBox.hidden = true
+  button.disabled = true
+  status.textContent = ''
+  status.append(globalThis.CMScanner.create({ size: 4, gap: 2 }), ' Looking for Hermes and your dashboard')
+  try {
+    const server = await detectServer({ address, password })
+    settings = await saveSettings({ providers: { hermes: { server, model: '' } } })
+    if (settings.provider !== 'hermes') settings = await saveSettings({ provider: 'hermes' })
+    renderProviders()
+    const fresh = document.getElementById('provider-hermes')
+    const { groups } = await providerModels('hermes', settings, { fresh: true })
+    setStatus(fresh, `Connected · ${groups.length} model${groups.length === 1 ? '' : 's'}`, true)
+  } catch (err) {
+    button.disabled = false
+    status.innerHTML = `<span class="bad">${esc(err.message)}</span>`
+    if (err.fix) {
+      fixBox.hidden = false
+      fixBox.innerHTML = `<p>${esc(err.fix)}</p><div class="cmd"><code>API_SERVER_HOST=0.0.0.0</code><button type="button" class="icon-btn sm ghost" data-copy="API_SERVER_HOST=0.0.0.0" title="Copy">${icon('copy', 14)}</button></div>`
+    }
+  }
+}
+
+async function useProvider(id) {
+  await flush()
+  settings = await saveSettings({ provider: id })
+  const cfg = settings.providers[id] ?? {}
+  // Key and URL providers need a model; take the first one they list.
+  if (!cfg.model && ['key', 'url'].includes(getProvider(id).access)) {
+    const { groups } = await providerModels(id, settings)
+    const first = groups[0]?.variants[0]?.id
+    if (first) settings = await saveSettings({ providers: { [id]: { model: first } } })
+  }
+  renderProviders()
+  toast(`${getProvider(id).name} answers now`)
+}
+
 function bindProviders() {
   const list = $('providerList')
-  list.addEventListener('change', (e) => {
-    const t = e.target
-    if (t.name === 'defaultProvider') {
-      settings.provider = t.value
-      saveSettings({ provider: t.value }).then((s) => {
-        settings = s
-        renderProviders()
-        toast('Default provider saved')
-      })
-      return
-    }
-    if (t.dataset.field) saveField(t)
-  })
   list.addEventListener('input', (e) => {
-    if (e.target.dataset.field && e.target.type !== 'checkbox' && e.target.tagName !== 'SELECT') saveField(e.target, true)
+    const field = e.target.dataset.field
+    if (!field || e.target.type === 'checkbox') return
+    const [id, key] = field.split('.')
+    const patch = { [key]: e.target.value.trim() }
+    // A new address is a new server: connect again (now, or on first use).
+    if (field === 'hermes.address' && settings.providers.hermes.server) {
+      patch.server = null
+      const status = e.target.closest('.pcard')?.querySelector('[data-connect-status]')
+      if (status) status.textContent = ''
+    }
+    save({ providers: { [id]: patch } }, { quiet: true })
+  })
+  list.addEventListener('change', (e) => {
+    const field = e.target.dataset.field
+    if (!field) return
+    const [id, key] = field.split('.')
+    const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value.trim()
+    save({ providers: { [id]: { [key]: value } } })
+    if (key === 'apiKey' || key === 'zenKey' || key === 'baseUrl') setTimeout(() => refreshStates(), 500)
+  })
+  list.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && e.target.closest('#provider-hermes') && e.target.matches('input')) {
+      e.preventDefault()
+      connectServer(document.getElementById('provider-hermes'))
+    }
   })
   list.addEventListener('click', async (e) => {
-    const reveal = e.target.closest('[data-reveal-field]')
+    const card = e.target.closest('[data-provider]')
+    if (!card) return
+    const id = card.dataset.provider
+    const reveal = e.target.closest('[data-reveal]')
     if (reveal) {
-      const input = list.querySelector(`[data-field="${reveal.dataset.revealField}"]`)
-      input.type = input.type === 'password' ? 'text' : 'password'
+      const field = reveal.parentElement.querySelector('input')
+      field.type = field.type === 'password' ? 'text' : 'password'
+      reveal.title = field.type === 'password' ? 'Show' : 'Hide'
+      reveal.setAttribute('aria-pressed', String(field.type === 'text'))
       return
     }
-    const test = e.target.closest('[data-test]')
-    if (test) {
-      const id = test.dataset.test
-      setStatus(id, 'Testing…')
-      try {
-        setStatus(id, await testProvider(id, await getSettings()), true)
-      } catch (err) {
-        setStatus(id, err.message, false)
-      }
-      return
+    if (e.target.closest('[data-connect]')) return connectServer(card)
+    if (e.target.closest('[data-forget]')) {
+      settings = await saveSettings({ providers: { hermes: { server: null, model: '' } } })
+      return renderProviders()
     }
-    const fetchBtn = e.target.closest('[data-fetch]')
-    if (fetchBtn) {
-      const id = fetchBtn.dataset.fetch
-      setStatus(id, 'Loading models…')
+    if (e.target.closest('[data-use]')) return useProvider(id)
+    if (e.target.closest('[data-load-models]')) {
+      await flush()
+      const { groups, error } = await providerModels('custom', settings, { fresh: true })
+      $('customModels').innerHTML = groups.flatMap((g) => g.variants).map((v) => `<option value="${esc(v.id)}">`).join('')
+      return setStatus(card, error ? error.message : `${groups.length} models`, !error)
+    }
+    if (e.target.closest('[data-test]')) {
+      await flush()
+      setStatus(card, 'Testing…')
       try {
-        const models = await fetchModels(id, await getSettings())
-        const datalist = $(`list-${id}`)
-        if (datalist) datalist.innerHTML = models.map((m) => `<option value="${esc(m)}">`).join('')
-        setStatus(id, models.length ? `${models.length} models: pick one in the Model field` : 'No models listed', true)
+        setStatus(card, await testProvider(id, settings), true)
       } catch (err) {
-        setStatus(id, err.message, false)
+        setStatus(card, err.message, false)
       }
+      refreshStates({ fresh: true })
     }
   })
-}
-
-function saveField(input, quiet = false) {
-  const [id, key] = input.dataset.field.split('.')
-  const value = input.type === 'checkbox' ? input.checked : input.value.trim()
-  settings.providers[id] = { ...settings.providers[id], [key]: value }
-  save({ providers: { [id]: { [key]: value } } }, { quiet })
-  if (quiet) toastSoon()
-}
-
-let quietTimer = 0
-function toastSoon() {
-  clearTimeout(quietTimer)
-  quietTimer = setTimeout(() => toast('Saved'), 900)
 }
 
 /* ---------- bridge ---------- */
 
-async function checkBridge() {
+async function checkBridge(fresh = true) {
   const box = $('bridgeStatus')
-  box.innerHTML = '<span class="pill muted">Checking…</span>'
-  try {
-    const status = await bridgeStatus(await getSettings())
-    const cli = (id, name) => {
-      const c = status.providers?.[id]
-      if (!c?.installed) return `<span class="pill bad">${name}: not found</span>`
-      if (c.loggedIn === false) return `<span class="pill bad">${name}: not signed in</span>`
-      return `<span class="pill ok">${name} ${esc(c.version ?? '')}</span>`
-    }
-    box.innerHTML = `<span class="pill ok">Bridge ${esc(status.version ?? '')}</span>${cli('claude-code', 'Claude Code')}${cli('cursor', 'Cursor')}`
-  } catch (err) {
-    box.innerHTML = `<span class="pill bad">Not connected</span><span class="status">${esc(err.message)}</span>`
+  box.innerHTML = ''
+  box.append(globalThis.CMScanner.create({ size: 4, gap: 2 }))
+  const { value, error } = await bridgeApps(settings, { fresh })
+  if (!value) {
+    box.innerHTML = `<span class="pill bad">Not running</span><span class="status">${esc(
+      error?.message ?? 'Start it with the command below.',
+    )}</span>`
+    return
   }
+  const app = (id, name, brand) => {
+    const a = value.providers?.[id]
+    const state = !a?.installed ? 'not installed' : a.loggedIn === false ? 'not signed in' : a.version || 'ready'
+    const ok = a?.installed && a.loggedIn !== false
+    return `<span class="app-chip ${ok ? 'ok' : 'off'}">${logo(brand, 16)}<strong>${name}</strong><small>${esc(state)}</small></span>`
+  }
+  box.innerHTML = `<span class="pill ok">Running · paired · ${esc(value.version ?? '')}</span>
+    <div class="apps">${app('claude-code', 'Claude Code', 'claude')}${app('cursor', 'Cursor', 'cursor')}${app('opencode', 'OpenCode', 'opencode')}</div>`
 }
 
 function bindBridge() {
   $('bridgeUrl').value = settings.bridge.url
-  $('bridgeToken').value = settings.bridge.token
-  const persist = () => {
-    save({ bridge: { url: $('bridgeUrl').value.trim() || DEFAULTS.bridge.url, token: $('bridgeToken').value.trim() } }, { quiet: true })
-    toastSoon()
-  }
-  $('bridgeUrl').addEventListener('input', persist)
-  $('bridgeToken').addEventListener('input', persist)
-  $('bridgeToken').addEventListener('change', () => setTimeout(checkBridge, 500))
-  $('bridgeCheck').addEventListener('click', checkBridge)
+  $('bridgeUrl').addEventListener('change', () => {
+    save({ bridge: { url: $('bridgeUrl').value.trim() || DEFAULTS.bridge.url, token: '' } })
+    setTimeout(() => checkBridge(), 500)
+  })
+  $('bridgeCheck').addEventListener('click', async () => {
+    await checkBridge()
+    refreshStates({ fresh: true })
+  })
 }
 
 /* ---------- behavior ---------- */
@@ -318,14 +402,14 @@ function renderActions() {
           (a, i) => `<div class="custom-action" data-index="${i}">
         <div class="custom-action-top"><input class="input" data-k="title" value="${esc(a.title)}" placeholder="Name">
           <button type="button" class="icon-btn" data-remove="${i}" title="Delete">${icon('trash', 15)}</button></div>
-        <textarea class="textarea" data-k="prompt" rows="2" placeholder="Summarize {{target}} for a busy executive.">${esc(a.prompt)}</textarea>
+        <textarea class="textarea" data-k="prompt" rows="2" placeholder="Summarize {{target}} for a busy reader.">${esc(a.prompt)}</textarea>
         <div class="scopes">${SCOPES.map(
           ([id, label]) =>
             `<label class="scope"><input type="checkbox" data-scope="${id}" ${(a.scopes ?? []).includes(id) ? 'checked' : ''}>${label}</label>`,
         ).join('')}</div></div>`,
         )
         .join('')
-    : '<p class="empty">No custom actions yet.</p>'
+    : '<p class="empty">No actions of your own yet.</p>'
 }
 
 function bindActions() {
@@ -335,11 +419,8 @@ function bindActions() {
     if (!card) return
     const a = settings.customActions[Number(card.dataset.index)]
     if (e.target.dataset.k) a[e.target.dataset.k] = e.target.value
-    if (e.target.dataset.scope) {
-      a.scopes = [...card.querySelectorAll('[data-scope]:checked')].map((c) => c.dataset.scope)
-    }
+    if (e.target.dataset.scope) a.scopes = [...card.querySelectorAll('[data-scope]:checked')].map((c) => c.dataset.scope)
     save({}, { quiet: true })
-    toastSoon()
   }
   box.addEventListener('input', update)
   box.addEventListener('change', update)
@@ -364,14 +445,14 @@ async function renderShortcuts() {
   const names = {
     _execute_action: 'Open ChroMind',
     _execute_sidebar_action: 'Open ChroMind',
-    'summarize-page': 'Summarize the current page',
-    'explain-selection': 'Explain the selected text',
+    'summarize-page': 'Summarize the page',
+    'explain-selection': 'Explain the selection',
   }
   $('shortcutList').innerHTML = commands
     .map(
       (c) =>
         `<div class="shortcut"><span>${esc(names[c.name] ?? c.description ?? c.name)}</span>${
-          c.shortcut ? c.shortcut.split('+').map((k) => `<kbd>${esc(k)}</kbd>`).join('+') : '<span class="status">Not set</span>'
+          c.shortcut ? c.shortcut.split('+').map((k) => `<kbd>${esc(k)}</kbd>`).join(' ') : '<span class="status">Not set</span>'
         }</div>`,
     )
     .join('')
@@ -406,7 +487,7 @@ function bindData() {
   $('clearHistory').addEventListener('click', async () => {
     if (!confirm('Delete all saved ChroMind chats on this device?')) return
     await clearThreads()
-    toast('Chat history deleted')
+    toast('Chats deleted')
   })
 }
 
@@ -441,11 +522,6 @@ function bindChrome() {
       await navigator.clipboard.writeText(copy.dataset.copy)
       toast('Copied')
     }
-    const reveal = e.target.closest('[data-reveal]')
-    if (reveal) {
-      const input = $(reveal.dataset.reveal)
-      input.type = input.type === 'password' ? 'text' : 'password'
-    }
   })
   const links = [...document.querySelectorAll('.side a')]
   const spy = new IntersectionObserver(
@@ -474,8 +550,13 @@ async function init() {
   bindData()
   renderShortcuts()
   checkPermissions()
-  checkBridge()
-  if (location.hash) document.querySelector(location.hash)?.scrollIntoView()
+  checkBridge(false)
+  const hash = location.hash.slice(1)
+  if (hash) {
+    const target = document.getElementById(hash === 'welcome' ? 'providers' : hash)
+    target?.scrollIntoView({ block: 'start' })
+    target?.classList.add('flash')
+  }
 }
 
 init()

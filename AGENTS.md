@@ -1,6 +1,6 @@
 # Agent notes
 
-**ChroMind** is a Manifest V3 AI side panel for Firefox (sidebar) and Chromium (side panel) from one codebase. It answers with the user's own AI: the claude.ai web session, the `claude` and `cursor-agent` CLIs through ChroMind Bridge, a Hermes Agent API server, or any OpenAI-compatible server. Theming follows [ChroMods](https://github.com/T3lluz/ChroMods) (dot-frost glass header, dark cards) in mint `#3ee6b0` and cyan `#22d3ee`.
+**ChroMind** is a Manifest V3 AI side panel for Firefox (sidebar) and Chromium (side panel) from one codebase. It answers with the user's own AI: the claude.ai web session, their server (the t3lluz dashboard's `/_api` or Hermes Agent's API, found from an address + password), OpenCode's free models, the `claude` / `cursor-agent` / `opencode` apps through ChroMind Bridge, API keys (OpenRouter, Gemini, OpenAI, Groq), or a local OpenAI-compatible server. Theming follows [ChroMods](https://github.com/T3lluz/ChroMods) (dot-frost glass header, dark cards) in mint `#3ee6b0` and cyan `#22d3ee`.
 
 ## Layout
 
@@ -12,7 +12,10 @@
 | `extension/options/` | Settings page. Auto-saves (debounced, merged patches). |
 | `extension/content/selection.js` | Selection toolbar + answer card in a **closed** shadow root. Classic script (content scripts can't be modules). |
 | `extension/content/site.js` | Docs site only: sets `data-chromind-version` on `<html>` so the install page shows "installed" / "update available" (`site/assets/site.js`). Exposes nothing else. Match patterns have no port (Firefox ignores them). |
-| `extension/lib/providers/` | `claude-web.js` (claude.ai session API), `openai.js` (Hermes, Bridge, custom), `index.js` (registry, `runChat`, `testProvider`). |
+| `extension/lib/providers/` | `catalog.js` (every provider: name, brand, access badge), `index.js` (model lists, `isReady`, `runChat`, `testProvider`), `claude-web.js` (claude.ai session API), `server.js` ("Your server": address parsing and detection over HTTP), `bridge.js` (auto-pairing), `openai.js` (OpenAI-style streaming). |
+| `extension/lib/models.js` | Model families and depths for the picker (`-high` suffixes, `@depth` marks). |
+| `extension/lib/brands.js` | Maker logos from `icons/brands/` (LobeHub Icons, MIT). Colored ones are `<img>`, monochrome ones a CSS mask in `currentColor`. |
+| `extension/lib/scanner.js` | OpenCode's working indicator. Classic script → `globalThis.CMScanner`. |
 | `extension/lib/extract.js` | Page text (Readability), YouTube transcript (opens/reads/closes the transcript panel), links, screenshots. In-page functions must be self-contained. |
 | `extension/lib/markdown.js` | Safe renderer: escapes everything, no raw HTML, **no images** (prevents exfiltration via image URLs). Classic script → `globalThis.CMMarkdown`. |
 | `extension/lib/net-rules.js` | DNR session rules for the extension's own requests (`tabIds: [-1]`): Origin `https://claude.ai` for claude.ai, no Origin elsewhere. |
@@ -25,7 +28,8 @@
 ## Rules
 
 - **Cross-browser.** Use `api` from `lib/browser.js` (`browser ?? chrome`). Feature-detect `sidePanel` vs `sidebarAction`. Both only open inside a user gesture, so call `openPanel()` synchronously at the top of a click/menu/command handler, before any `await`.
-- **Untrusted page text.** Everything from pages goes in `<context>` blocks (`prompts.js`), the system prompt says to ignore instructions inside them, the renderer never loads URLs, and the Bridge runs CLIs with tools off / read-only. Don't weaken any of these.
+- **Untrusted page text.** Everything from pages goes in `<context>` blocks (`prompts.js`), the system prompt says to ignore instructions inside them, the renderer never loads URLs, and the Bridge runs the apps with tools off / read-only / permissions on ask. Don't weaken any of these.
+- **No SSH.** Browsers can't open SSH connections. "Your server" talks HTTP; the `user@` part and SSH port of an address are ignored.
 - **No new runtime dependencies in the extension.** Vendor browser code into `extension/vendor/` via `scripts/vendor.mjs` with its license.
 - `[hidden]` must win over component `display` rules (global rule in `theme.css`).
 - Settings live in `storage.local` only (keys, tokens). Never `storage.sync`.
@@ -33,14 +37,15 @@
 
 ## Adding a provider
 
-1. `PROVIDERS` + branches in `runChat()` / `testProvider()` (`lib/providers/index.js`); defaults in `lib/settings.js`; fields and a note in `options/options.js`.
-2. CLI-based? Add it to the Bridge instead: `provider/model` prefix, spawn args (no prompt text through a shell), a stream parser, and status detection.
-3. Document it in `site/pages/providers.html`.
+1. Describe it in `PROVIDERS` (`lib/providers/catalog.js`). An OpenAI-style API with a key needs only `baseUrl` and `keyUrl`; anything else gets branches in `loadModels()`, `isReady()` and `runChat()` (`lib/providers/index.js`).
+2. Defaults in `lib/settings.js`; fields in `options/options.js` if it needs more than a key. Add its logo to `icons/brands/` and a rule in `lib/brands.js`.
+3. An app on the computer? Add it to the Bridge instead: `provider/model` prefix, spawn args (no prompt text through a shell), a stream parser, and status detection.
+4. Document it in `site/pages/providers.html`.
 
 ## Testing
 
 - `npm test`: unit tests for markdown, prompts, SSE, manifests (both browsers), zip writer, Bridge parsers.
-- `npm run test:e2e`: Playwright Chromium with the extension. Real answers need `node bridge/chromind-bridge.mjs` running with a signed-in Claude Code; the claude.ai path is checked for a clean sign-in error (no login in the test profile).
+- `npm run test:e2e`: Playwright Chromium with the extension. It starts its own Bridge (port 8799, temp `CHROMIND_HOME`) and a fake dashboard; real answers need a signed-in Claude Code and the OpenCode app on this machine. The claude.ai path is checked for a clean sign-in error (no login in the test profile).
 - `npm run lint:firefox`: Mozilla's addons-linter. Must have 0 errors (innerHTML warnings are expected; all dynamic values are escaped).
 
 ## Releasing

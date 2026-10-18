@@ -6,6 +6,7 @@
  * answer and saves the thread. The background only hands over requests
  * from menus and shortcuts (port "panel").
  */
+import { brandFor, logo } from '../lib/brands.js'
 import { api, openOptions, uid } from '../lib/browser.js'
 import {
   canRead,
@@ -27,10 +28,20 @@ import {
   threadToMarkdown,
 } from '../lib/history.js'
 import { icon } from '../lib/icons.js'
+import { DEPTH_LABEL, locate, pickVariant } from '../lib/models.js'
 import { actionPrompt, actionsFor, findAction, slashName, TARGETS, threadTitle } from '../lib/prompts.js'
 import { deleteConversation } from '../lib/providers/claude-web.js'
 import { serializeError } from '../lib/providers/errors.js'
-import { getProvider, PROVIDERS, providerLabel, runChat } from '../lib/providers/index.js'
+import {
+  ACCESS,
+  getProvider,
+  isReady,
+  providerLabel,
+  providerModels,
+  PROVIDERS,
+  runChat,
+  warmLabels,
+} from '../lib/providers/index.js'
 import { applyTheme, getSettings, onSettingsChanged, saveSettings } from '../lib/settings.js'
 
 const $ = (id) => document.getElementById(id)
@@ -39,24 +50,6 @@ const PARAMS = new URLSearchParams(location.search)
 const MODE = PARAMS.get('mode') === 'tab' ? 'tab' : 'panel'
 /** ?window=<id>: follow another window's active tab (pop-out panel, tests). */
 const FOLLOW_WINDOW = Number(PARAMS.get('window')) || null
-
-const ACTION_BLURBS = {
-  summarize: 'Overview and key points',
-  keypoints: 'The essentials as bullets',
-  explain: 'In plain language',
-  eli5: 'With a simple analogy',
-  translate: '',
-  simplify: 'Easier to read',
-  improve: 'Grammar and clarity',
-  reply: 'A reply in the same tone',
-  factcheck: 'Check the claims',
-  questions: 'Questions worth asking',
-  actions: 'Tasks, dates, decisions',
-  compare: 'Side by side',
-  describe: 'What the image shows',
-}
-
-const PROVIDER_ICONS = { 'claude-web': 'spark', 'claude-code': 'bridge', cursor: 'bridge', hermes: 'server', custom: 'server' }
 
 const state = {
   settings: null,
@@ -67,6 +60,8 @@ const state = {
   attachments: [],
   thread: newThread(),
   controller: null,
+  phase: '',
+  startedAt: 0,
   slashIndex: 0,
   speaking: null,
 }
@@ -100,7 +95,7 @@ function hostOf(url) {
 const FALLBACK_FAVICON =
   'data:image/svg+xml,' +
   encodeURIComponent(
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#3ee6b0" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>',
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#87a19b" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>',
   )
 
 function faviconFor(tab) {
@@ -135,66 +130,245 @@ function currentScope() {
   return isVideo() ? 'youtube' : 'page'
 }
 
-/* ---------- provider pill and menu ---------- */
+function clock(ms) {
+  const s = Math.max(0, Math.floor(ms / 1000))
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+}
 
-function renderProvider() {
+/* ---------- the AI pill ---------- */
+
+function renderPill() {
   const label = providerLabel(state.settings)
-  $('providerName').textContent = label.name
-  $('providerModel').textContent = label.model
-  $('providerBtn').title = `Answering with ${label.full}`
+  $('aiLogo').innerHTML = logo(label.brand, 18)
+  $('aiModel').textContent = label.model || label.name
+  $('aiProvider').textContent = label.model ? label.name : ''
+  $('aiPill').title = `Answering with ${label.model ? `${label.model} (${label.name})` : label.name}`
   const provider = getProvider(state.settings.provider)
-  $('shotBtn').disabled = !provider.images || MODE === 'tab'
-  $('shotBtn').title = provider.images
-    ? 'Attach a screenshot of the page'
-    : `${provider.name} can't see images`
+  const canSee = provider.images || (provider.id === 'opencode' && state.settings.providers.opencode.zenKey)
+  $('shotBtn').disabled = !canSee || MODE === 'tab'
+  $('shotBtn').title = canSee ? 'Attach a screenshot of the page' : `${provider.name} can't see images`
 }
 
-function renderProviderMenu() {
-  const menu = $('providerMenu')
-  const s = state.settings
-  menu.innerHTML =
-    '<div class="menu-label">Answer with</div>' +
-    PROVIDERS.map((p) => {
-      const active = p.id === s.provider
-      const cfg = s.providers[p.id] ?? {}
-      const name = p.id === 'custom' && cfg.name ? cfg.name : p.name
-      const models =
-        active && p.models.length
-          ? `<div class="menu-models">${p.models
-              .map(
-                (m) =>
-                  `<button type="button" class="model-chip" data-model="${esc(m.id)}" aria-pressed="${(cfg.model || '') === m.id}">${esc(m.label)}</button>`,
-              )
-              .join('')}${
-              p.freeModel && cfg.model && !p.models.some((m) => m.id === cfg.model)
-                ? `<button type="button" class="model-chip" aria-pressed="true">${esc(cfg.model)}</button>`
-                : ''
-            }</div>`
-          : ''
-      return `<button type="button" class="menu-item" role="menuitemradio" aria-checked="${active}" data-provider="${p.id}">
-          <span data-icon="${PROVIDER_ICONS[p.id] ?? 'spark'}"></span>
-          <span class="menu-copy"><strong>${esc(name)}</strong><small>${esc(p.detail)}</small></span>
-          <span class="menu-check" data-icon="check"></span>
-        </button>${models}`
-    }).join('') +
-    '<div class="menu-sep"></div><button type="button" class="menu-item" data-open-settings="providers"><span data-icon="settings"></span><span class="menu-copy"><strong>Provider settings</strong><small>Bridge, Hermes server, models</small></span></button>'
-  hydrateIcons(menu)
-}
+/* ---------- the AI picker (TileSmith / DailyDash style) ---------- */
 
-function toggleMenu(menu, button, open = menu.hidden) {
+const picker = { tab: null, query: '', ready: {}, groups: {}, errors: {}, loading: new Set(), expanded: null }
+
+async function openPicker() {
+  const sheet = $('picker')
+  if (!sheet.hidden) return closePicker()
   closeMenus()
-  if (!open) return
-  menu.hidden = false
-  button?.setAttribute('aria-expanded', 'true')
-  const rect = button.getBoundingClientRect()
-  const shell = $('shell').getBoundingClientRect()
-  menu.style.top = `${rect.bottom - shell.top + 6}px`
-  menu.style.left = `${Math.max(12, Math.min(rect.left - shell.left, shell.width - menu.offsetWidth - 12))}px`
+  picker.tab = state.settings.provider
+  picker.query = ''
+  picker.expanded = null
+  $('pickerSearch').value = ''
+  sheet.hidden = false
+  $('aiPill').setAttribute('aria-expanded', 'true')
+  renderRail()
+  renderPickerList()
+  $('pickerSearch').focus()
+  // Who's ready (the Bridge check is one request for all three apps).
+  await Promise.all(
+    PROVIDERS.map(async (p) => {
+      picker.ready[p.id] = await isReady(p.id, state.settings)
+    }),
+  )
+  renderRail()
+  renderPickerList()
+  for (const p of PROVIDERS) if (picker.ready[p.id]?.ready) loadPickerModels(p.id)
 }
 
-function closeMenus() {
-  for (const id of ['providerMenu', 'tabsMenu']) $(id).hidden = true
-  for (const id of ['providerBtn', 'tabsBtn']) $(id).setAttribute('aria-expanded', 'false')
+function closePicker() {
+  $('picker').hidden = true
+  $('aiPill').setAttribute('aria-expanded', 'false')
+}
+
+async function loadPickerModels(id, fresh = false) {
+  if (picker.loading.has(id)) return
+  picker.loading.add(id)
+  if (picker.tab === id) renderPickerList()
+  const { groups, error } = await providerModels(id, state.settings, { fresh })
+  picker.loading.delete(id)
+  picker.groups[id] = groups
+  picker.errors[id] = groups.length ? null : error
+  if (picker.tab === id || picker.query) renderPickerList()
+  if (id === state.settings.provider) renderPill()
+}
+
+function renderRail() {
+  const rail = $('pickerRail')
+  const order = [...PROVIDERS].sort((a, b) => Number(!!picker.ready[b.id]?.ready) - Number(!!picker.ready[a.id]?.ready))
+  rail.innerHTML = order
+    .map((p) => {
+      const ready = picker.ready[p.id]
+      const cls = [
+        'rail-item',
+        p.id === picker.tab ? 'is-active' : '',
+        p.id === state.settings.provider ? 'is-current' : '',
+        ready && !ready.ready ? 'is-off' : '',
+      ].join(' ')
+      return `<button type="button" class="${cls}" data-rail="${p.id}" title="${esc(p.name)}${ready && !ready.ready ? ` · ${esc(ready.note)}` : ''}">${logo(p.brand, 20)}</button>`
+    })
+    .join('')
+}
+
+function accessBadge(provider) {
+  const a = ACCESS[provider.access]
+  return `<span class="access access-${a.tone}">${esc(a.label)}</span>`
+}
+
+function familyRow(providerId, family, current) {
+  const isCurrent = providerId === state.settings.provider && family.variants.some((v) => v.id === current)
+  const expanded = picker.expanded === `${providerId}|${family.key}` || (isCurrent && (family.depths.length || family.hasFast))
+  const currentVariant = isCurrent ? family.variants.find((v) => v.id === current) : null
+  const badges = [
+    family.free ? '<span class="badge free">Free</span>' : '',
+    family.depths.length ? `<span class="badge">${family.depths.length} depths</span>` : '',
+  ].join('')
+  let depthRow = ''
+  if (expanded && (family.depths.length || family.hasFast)) {
+    const depth = currentVariant?.depth ?? ''
+    const fast = currentVariant?.fast ?? false
+    const hasPlain = family.variants.some((v) => !v.depth && v.fast === fast)
+    depthRow =
+      `<div class="depth-row">` +
+      (hasPlain ? `<button type="button" class="depth-chip" data-depth="" aria-pressed="${isCurrent && !depth}">Default</button>` : '') +
+      family.depths
+        .map(
+          (d) =>
+            `<button type="button" class="depth-chip" data-depth="${d}" aria-pressed="${isCurrent && depth === d}">${DEPTH_LABEL[d]}</button>`,
+        )
+        .join('') +
+      (family.hasFast ? `<button type="button" class="depth-chip fast" data-fast aria-pressed="${isCurrent && fast}">Fast</button>` : '') +
+      `</div>`
+  }
+  return `<div class="model-row${isCurrent ? ' is-current' : ''}${expanded ? ' is-open' : ''}" data-provider="${providerId}" data-family="${esc(family.key)}">
+      <button type="button" class="model-main" data-pick>
+        ${logo(family.brand || getProvider(providerId).brand, 18)}
+        <span class="model-copy"><strong>${esc(family.label)}</strong>${family.note ? `<small>${esc(family.note)}</small>` : ''}</span>
+        ${badges}
+        <span class="model-check" data-icon="check"></span>
+      </button>${depthRow}</div>`
+}
+
+function setupCard(provider) {
+  const ready = picker.ready[provider.id]
+  const bridge = provider.access === 'app' || (provider.id === 'opencode' && !state.settings.providers.opencode.zenKey)
+  return `<div class="setup-card">
+      <p>${esc(provider.blurb)}</p>
+      ${ready?.note ? `<p class="setup-note">${esc(ready.note)}</p>` : ''}
+      ${
+        bridge
+          ? `<p class="setup-note">Runs as an app on this computer through ChroMind Bridge, a small helper you start once.</p>`
+          : ''
+      }
+      <button type="button" class="btn primary" data-setup="${provider.id}">${bridge ? 'Set up Bridge' : 'Set up'}</button>
+    </div>`
+}
+
+function renderPickerList() {
+  const list = $('pickerList')
+  const current = state.settings.providers[state.settings.provider]?.model ?? ''
+  const q = picker.query.trim().toLowerCase()
+  if (q) {
+    let html = ''
+    for (const p of PROVIDERS) {
+      if (!picker.ready[p.id]?.ready) continue
+      const hits = (picker.groups[p.id] ?? []).filter(
+        (f) => f.label.toLowerCase().includes(q) || f.key.toLowerCase().includes(q) || p.name.toLowerCase().includes(q),
+      )
+      if (!hits.length) continue
+      html += `<div class="list-head small">${logo(p.brand, 14)}<span>${esc(p.name)}</span></div>`
+      html += hits.slice(0, 30).map((f) => familyRow(p.id, f, current)).join('')
+    }
+    list.innerHTML = html || `<p class="list-empty">No model matches “${esc(picker.query)}”.</p>`
+    hydrateIcons(list)
+    return
+  }
+  const provider = getProvider(picker.tab)
+  const ready = picker.ready[provider.id]
+  const head = `<div class="list-head">${logo(provider.brand, 22)}<div><strong>${esc(provider.name)}</strong>${accessBadge(provider)}</div>
+      ${ready?.ready && provider.id !== 'claude-web' ? `<button type="button" class="icon-btn sm ghost" data-refresh title="Reload the list">${icon('refresh', 14)}</button>` : ''}</div>`
+  if (ready && !ready.ready) {
+    list.innerHTML = head + setupCard(provider)
+    return
+  }
+  const groups = picker.groups[provider.id]
+  const error = picker.errors[provider.id]
+  let body = ''
+  if (!groups && (picker.loading.has(provider.id) || !ready)) {
+    body = `<div class="list-loading"><span class="scanner-slot"></span><span>Loading models</span></div>`
+  } else if (error && !groups?.length) {
+    body = `<div class="setup-card"><p>${esc(error.message)}</p>${
+      error.action ? `<button type="button" class="btn" data-setup="${provider.id}">Open settings</button>` : ''
+    }</div>`
+  } else if (!groups?.length) {
+    body = '<p class="list-empty">No models here yet.</p>'
+  } else {
+    let lastSource = ''
+    body = groups
+      .map((f) => {
+        let heading = ''
+        if (provider.id === 'hermes' && f.source && f.source !== lastSource) {
+          lastSource = f.source
+          heading = `<div class="list-head small"><span>On your server · ${esc({ claude: 'Claude', cursor: 'Cursor', opencode: 'OpenCode' }[f.source] ?? f.source)}</span></div>`
+        }
+        return heading + familyRow(provider.id, f, current)
+      })
+      .join('')
+  }
+  list.innerHTML = head + body
+  const slot = list.querySelector('.scanner-slot')
+  if (slot) slot.replaceWith(globalThis.CMScanner.create({ size: 4, gap: 2 }))
+  hydrateIcons(list)
+}
+
+async function chooseModel(providerId, modelId, { close = true } = {}) {
+  state.settings = await saveSettings({ provider: providerId, providers: { [providerId]: { model: modelId } } })
+  renderPill()
+  renderPickerList()
+  renderRail()
+  if (close) closePicker()
+}
+
+function onPickerClick(e) {
+  const rail = e.target.closest('[data-rail]')
+  if (rail) {
+    picker.tab = rail.dataset.rail
+    picker.query = ''
+    $('pickerSearch').value = ''
+    renderRail()
+    renderPickerList()
+    if (picker.ready[picker.tab]?.ready && !picker.groups[picker.tab]) loadPickerModels(picker.tab)
+    return
+  }
+  const setup = e.target.closest('[data-setup]')
+  if (setup) {
+    closePicker()
+    const p = getProvider(setup.dataset.setup)
+    const bridge = p.access === 'app' || (p.id === 'opencode' && !state.settings.providers.opencode.zenKey)
+    return openOptions(bridge ? 'bridge' : `provider-${p.id}`)
+  }
+  if (e.target.closest('[data-refresh]')) return loadPickerModels(picker.tab, true)
+  const row = e.target.closest('.model-row')
+  if (!row) return
+  const providerId = row.dataset.provider
+  const family = (picker.groups[providerId] ?? []).find((f) => f.key === row.dataset.family)
+  if (!family) return
+  const current = state.settings.providers[providerId]?.model ?? ''
+  const hit = locate([family], current)
+  const chip = e.target.closest('.depth-chip')
+  if (chip) {
+    const fast = chip.hasAttribute('data-fast') ? !hit?.variant.fast : (hit?.variant.fast ?? false)
+    const depth = chip.hasAttribute('data-fast') ? (hit?.variant.depth ?? '') : chip.dataset.depth
+    return chooseModel(providerId, pickVariant(family, depth, fast).id)
+  }
+  if (e.target.closest('[data-pick]')) {
+    // Keep the depth the person had on this family; otherwise the default.
+    const variant = hit?.variant ?? pickVariant(family, '', false)
+    const hasDepths = family.depths.length || family.hasFast
+    if (hasDepths) picker.expanded = `${providerId}|${family.key}`
+    chooseModel(providerId, variant.id, { close: !hasDepths })
+  }
 }
 
 /* ---------- page context ---------- */
@@ -211,25 +385,23 @@ function renderContext() {
   const readable = canRead(tab?.url)
   const video = isVideo(tab)
   $('ctxFavicon').src = faviconFor(tab)
-  $('ctxTitle').textContent = MODE === 'tab' ? 'Full-page chat' : tab?.title || 'No page'
+  $('ctxTitle').textContent = MODE === 'tab' ? 'No page attached' : tab?.title || 'No page'
   $('ctxMeta').innerHTML =
     MODE === 'tab'
-      ? 'No page attached. Open the side panel to chat about a page.'
+      ? 'Open the side panel to chat about a page'
       : !tab
         ? ''
         : readable
-          ? `${esc(hostOf(tab.url))}${video ? ' · <span class="badge">Video transcript</span>' : ''}`
-          : "ChroMind can't read this page"
+          ? `${esc(hostOf(tab.url))}${video ? ' · <span class="badge-inline">Transcript</span>' : ''}`
+          : 'ChroMind can’t read this page'
   const toggle = $('ctxToggle')
   toggle.disabled = !readable
   toggle.setAttribute('aria-pressed', String(readable && state.pageOn))
   $('ctxToggleLabel').textContent = video ? 'Video' : 'Page'
   $('tabsBtn').hidden = MODE === 'tab'
   const on = readable && state.pageOn
-  $('input').placeholder = on ? (video ? 'Ask about this video…' : 'Ask about this page…') : 'Ask anything…'
-  $('welcomeSub').textContent = on
-    ? `Ask anything about this ${video ? 'video' : 'page'}, or start with an action.`
-    : 'Ask anything, or open a page to chat about it.'
+  $('input').placeholder = on ? (video ? 'Ask about this video' : 'Ask about this page') : 'Ask anything'
+  $('welcomeTitle').textContent = on ? (video ? 'Ask about this video' : 'Ask about this page') : 'Ask anything'
   renderChips()
   renderActionGrid()
   renderStatus()
@@ -240,46 +412,71 @@ function renderChips() {
   box.hidden = state.extraTabs.size === 0
   box.innerHTML = [...state.extraTabs.values()]
     .map(
-      (t) => `<span class="chip" title="${esc(t.url)}">${faviconFor(t) ? `<img src="${esc(faviconFor(t))}" alt="">` : '<span data-icon="page"></span>'}
+      (t) => `<span class="chip" title="${esc(t.url)}"><img src="${esc(faviconFor(t))}" alt="">
         <span class="label">${esc(t.title || hostOf(t.url))}</span>
         <button type="button" data-remove-tab="${t.id}" title="Remove">${icon('close', 12)}</button></span>`,
     )
     .join('')
-  hydrateIcons(box)
 }
 
 async function renderTabsMenu() {
   const menu = $('tabsMenu')
-  const tabs = (await api.tabs.query({ windowId: state.windowId })).filter(
-    (t) => t.id !== state.tab?.id && canRead(t.url),
-  )
+  const tabs = (await api.tabs.query({ windowId: state.windowId })).filter((t) => t.id !== state.tab?.id && canRead(t.url))
   menu.innerHTML =
     '<div class="menu-label">Add tabs to the chat</div>' +
     (tabs.length
       ? tabs
           .map(
             (t) => `<button type="button" class="menu-item" role="menuitemcheckbox" aria-checked="${state.extraTabs.has(t.id)}" data-tab="${t.id}">
-          ${faviconFor(t) ? `<img src="${esc(faviconFor(t))}" alt="" width="16" height="16" style="border-radius:4px">` : '<span data-icon="page"></span>'}
+          <img src="${esc(faviconFor(t))}" alt="" width="16" height="16" style="border-radius:4px">
           <span class="menu-copy"><strong>${esc(t.title || t.url)}</strong><small>${esc(hostOf(t.url))}</small></span>
           <span class="menu-check" data-icon="check"></span></button>`,
           )
           .join('')
       : '<div class="menu-empty">No other readable tabs in this window.</div>')
   hydrateIcons(menu)
-  return tabs
 }
 
+function toggleMenu(menu, button) {
+  const open = menu.hidden
+  closeMenus()
+  if (!open) return
+  menu.hidden = false
+  button?.setAttribute('aria-expanded', 'true')
+  const rect = button.getBoundingClientRect()
+  const shell = $('shell').getBoundingClientRect()
+  menu.style.top = `${rect.bottom - shell.top + 6}px`
+  menu.style.left = `${Math.max(12, Math.min(rect.left - shell.left, shell.width - menu.offsetWidth - 12))}px`
+}
+
+function closeMenus() {
+  $('tabsMenu').hidden = true
+  $('tabsBtn').setAttribute('aria-expanded', 'false')
+}
+
+let statusTimer = 0
 function renderStatus() {
+  const box = $('composerStatus')
+  clearInterval(statusTimer)
+  if (state.controller || state.phase) {
+    box.textContent = ''
+    box.append(globalThis.CMScanner.create({ size: 4, gap: 2 }))
+    const label = document.createElement('span')
+    box.append(label)
+    const tick = () => {
+      label.textContent = `${state.phase || 'Working'} · ${clock(Date.now() - state.startedAt)}`
+    }
+    tick()
+    statusTimer = setInterval(tick, 500)
+    box.classList.add('is-working')
+    return
+  }
+  box.classList.remove('is-working')
   const parts = []
-  if (MODE !== 'tab' && canRead(state.tab?.url) && state.pageOn) parts.push(isVideo() ? 'Video' : 'This page')
-  if (state.extraTabs.size) parts.push(`${state.extraTabs.size} tab${state.extraTabs.size > 1 ? 's' : ''}`)
-  const att = state.attachments
-  if (att.length) parts.push(att.map((a) => a.kind).join(', '))
-  $('composerStatus').textContent = state.controller
-    ? 'Answering…'
-    : parts.length
-      ? `Sends: ${parts.join(' + ')}`
-      : 'No page context'
+  if (MODE !== 'tab' && canRead(state.tab?.url) && state.pageOn) parts.push(isVideo() ? 'this video' : 'this page')
+  if (state.extraTabs.size) parts.push(`${state.extraTabs.size} more tab${state.extraTabs.size > 1 ? 's' : ''}`)
+  for (const a of state.attachments) parts.push(a.kind === 'image' ? 'an image' : a.kind === 'link' ? 'a link' : 'the selection')
+  box.textContent = parts.length ? `With ${parts.join(', ')}` : ''
 }
 
 /* ---------- attachments in the composer ---------- */
@@ -310,7 +507,7 @@ function renderAttachments() {
   updateSendButton()
 }
 
-/* ---------- welcome actions ---------- */
+/* ---------- empty state: actions ---------- */
 
 function renderActionGrid() {
   if (!state.settings) return
@@ -333,8 +530,8 @@ function renderActionGrid() {
     ? ''
     : ordered
         .map((a) => {
-          const blurb = a.custom ? 'Your action' : a.id === 'translate' ? `Into ${state.settings.translateTo}` : ACTION_BLURBS[a.id]
-          return `<button type="button" class="action-card" data-action="${esc(a.id)}"><span data-icon="${esc(a.icon)}"></span><strong>${esc(a.title)}</strong><small>${esc(blurb ?? '')}</small></button>`
+          const title = a.id === 'translate' ? `Translate to ${state.settings.translateTo}` : a.title
+          return `<button type="button" class="action-row" data-action="${esc(a.id)}"><span data-icon="${esc(a.icon)}"></span>${esc(title)}</button>`
         })
         .join('')
   hydrateIcons($('actionGrid'))
@@ -354,10 +551,8 @@ function userHTML(m) {
     )
     .join('')
   const images = (m.images ?? []).map((img) => `<img src="${esc(img.dataUrl)}" alt="">`).join('')
-  const tag = m.action
-    ? `<span class="action-tag"><span data-icon="${esc(m.action.icon || 'zap')}"></span>${esc(m.action.title)}</span>`
-    : ''
-  const text = m.action ? m.display ?? '' : m.text
+  const tag = m.action ? `<span class="action-tag"><span data-icon="${esc(m.action.icon || 'zap')}"></span>${esc(m.action.title)}</span>` : ''
+  const text = m.action ? (m.display ?? '') : m.text
   return `${contexts ? `<div class="msg-contexts">${contexts}</div>` : ''}${images ? `<div class="msg-images">${images}</div>` : ''}<div class="bubble">${tag}${esc(text)}</div>`
 }
 
@@ -369,13 +564,14 @@ function messageView(m) {
     el.innerHTML = userHTML(m)
   } else {
     el.className = 'msg-assistant'
-    el.innerHTML = `<div class="msg-head"><img class="msg-avatar" src="../icons/icon.svg" alt=""><strong>ChroMind</strong><span class="msg-provider"></span></div>
+    el.innerHTML = `<div class="msg-head"><span class="msg-logo"></span><span class="msg-provider"></span></div>
       <details class="thinking" hidden><summary><span data-icon="brain"></span><span class="label"></span></summary><div class="thinking-body"></div></details>
       <div class="tool-list" hidden></div>
-      <div class="waiting" hidden><i></i><i></i><i></i></div>
+      <div class="working" hidden><span class="working-label"></span></div>
       <div class="md"></div>
       <div class="msg-error" hidden></div>
       <div class="msg-actions" hidden></div>`
+    el.querySelector('.working').prepend(globalThis.CMScanner.create({ size: 5, gap: 2 }))
     updateAssistant(el, m)
   }
   hydrateIcons(el)
@@ -384,13 +580,14 @@ function messageView(m) {
 
 function updateAssistant(el, m) {
   el.classList.toggle('streaming', !!m.streaming)
-  el.querySelector('.msg-provider').textContent = `· ${m.providerName ?? ''}`
+  el.querySelector('.msg-logo').innerHTML = logo(m.brand || brandFor(m.model || '', 'opencode'), 16)
+  el.querySelector('.msg-provider').textContent = m.providerName ?? ''
 
   const thinking = el.querySelector('.thinking')
   thinking.hidden = !m.reasoning
   if (m.reasoning) {
     thinking.querySelector('.label').textContent =
-      m.streaming && !m.text ? 'Thinking…' : m.thoughtFor ? `Thought for ${m.thoughtFor}s` : 'Thoughts'
+      m.streaming && !m.text ? 'Thinking' : m.thoughtFor ? `Thought for ${m.thoughtFor}s` : 'Thoughts'
     thinking.querySelector('.thinking-body').textContent = m.reasoning
   }
 
@@ -402,7 +599,12 @@ function updateAssistant(el, m) {
       .join('')
   }
 
-  el.querySelector('.waiting').hidden = !(m.streaming && !m.text)
+  const working = el.querySelector('.working')
+  working.hidden = !(m.streaming && !m.text)
+  if (!working.hidden) {
+    const last = m.tools?.at(-1)
+    working.querySelector('.working-label').textContent = m.reasoning ? 'Thinking' : last ? `Using ${last.name}` : 'Working'
+  }
   el.querySelector('.md').innerHTML = globalThis.CMMarkdown.render(m.text, { timestamps: hasVideoContext() })
 
   const error = el.querySelector('.msg-error')
@@ -412,9 +614,12 @@ function updateAssistant(el, m) {
     const fix = m.error.link
       ? `<a class="btn" href="${esc(m.error.link)}" target="_blank" rel="noopener">${esc(m.error.linkLabel || 'Open')}</a>`
       : m.error.action
-        ? `<button type="button" class="btn" data-act="settings" data-section="${m.error.action === 'settings:bridge' ? 'bridge' : 'providers'}">Open settings</button>`
+        ? `<button type="button" class="btn" data-act="settings" data-section="${m.error.action === 'settings:bridge' ? 'bridge' : `provider-${m.provider}`}">Open settings</button>`
         : ''
-    error.innerHTML = `<p>${icon('alert', 16)}<span>${esc(m.error.message)}</span></p><div style="display:flex;gap:6px;flex-wrap:wrap">${fix}<button type="button" class="btn" data-act="retry">Try again</button></div>`
+    const code = m.error.fix
+      ? `<div class="fix"><code>${esc(m.error.fix)}</code><button type="button" class="icon-btn sm ghost" data-copy="${esc(m.error.fix)}" title="Copy">${icon('copy', 13)}</button></div>`
+      : ''
+    error.innerHTML = `<p>${icon('alert', 16)}<span>${esc(m.error.message)}</span></p>${code}<div class="err-actions">${fix}<button type="button" class="btn" data-act="retry">Try again</button></div>`
   }
 
   const actions = el.querySelector('.msg-actions')
@@ -425,9 +630,9 @@ function updateAssistant(el, m) {
         ? `<button type="button" class="icon-btn ghost" data-act="copy" title="Copy">${icon('copy', 14)}</button>
            <button type="button" class="icon-btn ghost" data-act="speak" title="Read aloud">${icon('speaker', 14)}</button>`
         : '') +
-      `<button type="button" class="icon-btn ghost" data-act="regen" title="Regenerate">${icon('refresh', 14)}</button>` +
+      `<button type="button" class="icon-btn ghost" data-act="regen" title="Answer again">${icon('refresh', 14)}</button>` +
       (m.link ? `<a class="link-btn" href="${esc(m.link.url)}" target="_blank" rel="noopener">${icon('external', 13)}${esc(m.link.label)}</a>` : '') +
-      (m.stopped ? '<span class="composer-status">Stopped</span>' : '')
+      (m.stopped ? '<span class="muted-note">Stopped</span>' : '')
   }
 }
 
@@ -455,12 +660,14 @@ async function gatherContexts({ includePage }) {
   const contexts = []
   const warn = (err) => toast(err?.message || String(err))
   if (includePage && MODE !== 'tab' && canRead(state.tab?.url) && !known.has(state.tab.url)) {
+    setPhase(isVideo() ? 'Reading the transcript' : 'Reading the page')
     const ctx = await readTab(state.tab, { maxChars: max }).catch(warn)
     if (ctx?.text) contexts.push({ ...ctx, tabId: state.tab.id })
   }
   const share = Math.max(8000, Math.floor(max / (state.extraTabs.size + 1)))
   for (const tab of state.extraTabs.values()) {
     if (known.has(tab.url)) continue
+    setPhase('Reading tabs')
     const ctx = await readTab(tab, { maxChars: share }).catch(warn)
     if (ctx?.text) contexts.push({ ...ctx, kind: ctx.kind === 'youtube' ? 'youtube' : 'tab', tabId: tab.id })
   }
@@ -468,6 +675,7 @@ async function gatherContexts({ includePage }) {
     if (att.kind === 'selection') {
       contexts.push({ kind: 'selection', title: att.title, url: att.url, text: att.text, chars: att.text.length, truncated: false })
     } else if (att.kind === 'link' && !known.has(att.url)) {
+      setPhase('Reading the link')
       const ctx = await readLink(att.url, { maxChars: max }).catch(warn)
       if (ctx?.text) contexts.push(ctx)
     }
@@ -475,8 +683,14 @@ async function gatherContexts({ includePage }) {
   return contexts
 }
 
+function setPhase(phase) {
+  if (!state.startedAt) state.startedAt = Date.now()
+  state.phase = phase
+  renderStatus()
+}
+
 async function submit({ text, display, action = null, includePage = state.pageOn } = {}) {
-  if (state.controller) return
+  if (state.controller || state.phase) return
   const message = {
     id: uid(),
     role: 'user',
@@ -487,8 +701,12 @@ async function submit({ text, display, action = null, includePage = state.pageOn
     contexts: [],
     images: [],
   }
-  $('composerStatus').textContent = 'Reading…'
-  message.contexts = await gatherContexts({ includePage })
+  state.startedAt = Date.now()
+  try {
+    message.contexts = await gatherContexts({ includePage })
+  } finally {
+    state.phase = ''
+  }
   message.images = state.attachments.filter((a) => a.kind === 'image').map((a) => ({ dataUrl: a.dataUrl, name: a.name }))
   state.attachments = []
   renderAttachments()
@@ -512,11 +730,15 @@ async function respond() {
     reasoning: '',
     tools: [],
     provider: settings.provider,
-    providerName: label.full,
+    model: settings.providers[settings.provider]?.model ?? '',
+    brand: label.brand,
+    providerName: label.model ? `${label.model} · ${label.name}` : label.name,
     streaming: true,
   }
   const controller = new AbortController()
   state.controller = controller
+  state.startedAt ||= Date.now()
+  state.phase = ''
   setStreaming(true)
   const history = thread.messages.slice()
   thread.messages.push(assistant)
@@ -546,13 +768,16 @@ async function respond() {
             assistant.thoughtFor = Math.max(1, Math.round((Date.now() - reasoningStart) / 1000))
           }
           assistant.text += evt.text
+          state.phase = 'Writing'
         } else if (evt.type === 'reasoning') {
           reasoningStart ||= Date.now()
           assistant.reasoning += evt.text
+          state.phase = 'Thinking'
         } else if (evt.type === 'tool') {
           const last = assistant.tools.at(-1)
           if (last?.name === evt.name) last.count = (last.count ?? 1) + 1
           else assistant.tools.push({ name: evt.name, detail: evt.detail || '' })
+          state.phase = `Using ${evt.name}`
         } else if (evt.type === 'meta') {
           if (evt.link) assistant.link = { url: evt.link, label: evt.linkLabel || 'Open' }
         }
@@ -560,7 +785,7 @@ async function respond() {
       },
     })
     if (result?.providerState) thread.providerState = { ...thread.providerState, [settings.provider]: result.providerState }
-    if (!assistant.text.trim()) assistant.error = { message: `${label.name} sent an empty answer.`, code: 'empty' }
+    if (!assistant.text.trim()) assistant.error = { message: `${label.name} sent an empty answer. Try again, or pick another model.`, code: 'empty' }
   } catch (err) {
     if (err?.name === 'AbortError') {
       assistant.stopped = true
@@ -575,6 +800,8 @@ async function respond() {
     }
     assistant.streaming = false
     state.controller = null
+    state.phase = ''
+    state.startedAt = 0
     setStreaming(false)
     updateAssistant(view, assistant)
     persist()
@@ -605,13 +832,13 @@ async function persist() {
 
 async function runAction(action, { scope = currentScope(), extra = '' } = {}) {
   if ((scope === 'page' || scope === 'youtube') && !canRead(state.tab?.url)) {
-    toast("ChroMind can't read this page.")
+    toast('ChroMind can’t read this page.')
     return
   }
   let text = actionPrompt(action, scope, state.settings)
   if (extra) text += `\n\n${extra}`
   const pageScopes = ['page', 'youtube', 'tabs']
-  await submit({ text, display: extra || `on ${TARGETS[scope] ?? 'this'}`, action, includePage: pageScopes.includes(scope) })
+  await submit({ text, display: extra || `${TARGETS[scope] ?? 'this'}`, action, includePage: pageScopes.includes(scope) })
 }
 
 async function sendFromComposer() {
@@ -713,13 +940,12 @@ async function renderHistory() {
       group = label
       html += `<div class="history-group">${label}</div>`
     }
-    html += `<button type="button" class="history-item${t.id === state.thread.id ? ' is-current' : ''}" data-thread="${t.id}">
+    html += `<div class="history-item${t.id === state.thread.id ? ' is-current' : ''}" data-thread="${t.id}" role="button" tabindex="0">
       <strong>${esc(t.title)}</strong><small>${esc(t.preview || hostOf(t.url))}</small>
-      <span class="icon-btn sm ghost" role="button" data-delete-thread="${t.id}" title="Delete">${icon('trash', 14)}</span></button>`
+      <button type="button" class="icon-btn sm ghost" data-delete-thread="${t.id}" title="Delete">${icon('trash', 14)}</button></div>`
   }
   $('historyList').innerHTML =
-    html ||
-    `<div class="menu-empty">${q ? 'No chats match.' : state.settings.saveHistory ? 'No saved chats yet.' : 'History is off in settings.'}</div>`
+    html || `<div class="menu-empty">${q ? 'No chats match.' : state.settings.saveHistory ? 'Your chats will show up here.' : 'Saving chats is off in settings.'}</div>`
 }
 
 function download(name, text) {
@@ -757,7 +983,7 @@ async function handleRequest(req) {
       if (!text) return toast('Select some text first.')
       addAttachment({ kind: 'selection', title: tab?.title ?? '', url: tab?.url ?? req.pageUrl, text })
       if (action) await runAction(action, { scope: 'selection' })
-      else focusInput('Ask about the selection…')
+      else focusInput('Ask about the selection')
     } else if (req.scope === 'page') {
       if (action) await runAction(action, { scope: isVideo(tab) ? 'youtube' : 'page' })
       else {
@@ -768,12 +994,12 @@ async function handleRequest(req) {
     } else if (req.scope === 'link') {
       addAttachment({ kind: 'link', title: req.linkText || hostOf(req.linkUrl) || req.linkUrl, url: req.linkUrl })
       if (action) await runAction(action, { scope: 'link' })
-      else focusInput('Ask about the linked page…')
+      else focusInput('Ask about the linked page')
     } else if (req.scope === 'image') {
       const dataUrl = await imageToDataUrl(req.srcUrl)
       addAttachment({ kind: 'image', name: 'image.jpg', title: 'Image', dataUrl })
       if (action) await runAction(action, { scope: 'image' })
-      else focusInput('Ask about the image…')
+      else focusInput('Ask about the image')
     }
   } catch (err) {
     toast(err?.message || String(err))
@@ -825,7 +1051,7 @@ function bindEvents() {
     }
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && (state.settings.sendOnEnter || e.ctrlKey || e.metaKey)) {
       e.preventDefault()
-      if (!state.controller) sendFromComposer()
+      if (!state.controller && !state.phase) sendFromComposer()
     }
   })
 
@@ -833,6 +1059,7 @@ function bindEvents() {
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
+      if (!$('picker').hidden) return closePicker()
       if (state.controller) state.controller.abort()
       closeMenus()
       hideSlash()
@@ -842,8 +1069,31 @@ function bindEvents() {
 
   document.addEventListener('click', (e) => {
     const t = e.target
-    if (!t.closest('#providerMenu, #providerBtn, #tabsMenu, #tabsBtn')) closeMenus()
-    if (!t.closest('#slashMenu, #actionsBtn, #input')) hideSlash()
+    // The path from when the click happened: a menu may have re-rendered
+    // (and detached the target) before the click reaches the document.
+    const path = new Set(e.composedPath().map((el) => el.id).filter(Boolean))
+    const inside = (...ids) => ids.some((id) => path.has(id))
+    if (!inside('tabsMenu', 'tabsBtn')) closeMenus()
+    if (!inside('slashMenu', 'actionsBtn', 'input')) hideSlash()
+    if (!inside('picker', 'aiPill')) closePicker()
+    const copy = t.closest?.('[data-copy]')
+    if (copy) {
+      navigator.clipboard.writeText(copy.dataset.copy).then(() => toast('Copied'))
+    }
+  })
+
+  $('aiPill').addEventListener('click', openPicker)
+  $('picker').addEventListener('click', onPickerClick)
+  $('pickerSearch').addEventListener('input', (e) => {
+    picker.query = e.target.value
+    renderPickerList()
+  })
+  $('pickerSearch').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') e.target.closest('#picker').querySelector('.model-row [data-pick]')?.click()
+  })
+  $('pickerManage').addEventListener('click', () => {
+    closePicker()
+    openOptions('providers')
   })
 
   $('slashMenu').addEventListener('click', (e) => {
@@ -859,27 +1109,6 @@ function bindEvents() {
   $('actionsBtn').addEventListener('click', () => {
     if (!$('slashMenu').hidden) return hideSlash()
     showSlash(actionsFor(state.settings, currentScope()))
-  })
-
-  $('providerBtn').addEventListener('click', () => {
-    renderProviderMenu()
-    toggleMenu($('providerMenu'), $('providerBtn'))
-  })
-
-  $('providerMenu').addEventListener('click', async (e) => {
-    const provider = e.target.closest('[data-provider]')
-    const model = e.target.closest('[data-model]')
-    const settings = e.target.closest('[data-open-settings]')
-    if (provider) {
-      state.settings = await saveSettings({ provider: provider.dataset.provider })
-    } else if (model) {
-      state.settings = await saveSettings({ providers: { [state.settings.provider]: { model: model.dataset.model } } })
-    } else if (settings) {
-      closeMenus()
-      return openOptions(settings.dataset.openSettings)
-    } else return
-    renderProvider()
-    renderProviderMenu()
   })
 
   $('tabsBtn').addEventListener('click', async () => {
@@ -945,7 +1174,7 @@ function bindEvents() {
   })
   $('historyClose').addEventListener('click', () => ($('historyDrawer').hidden = true))
   $('historySearch').addEventListener('input', renderHistory)
-  $('historyList').addEventListener('click', async (e) => {
+  const openHistoryItem = async (e) => {
     const del = e.target.closest('[data-delete-thread]')
     if (del) {
       e.stopPropagation()
@@ -960,6 +1189,10 @@ function bindEvents() {
     const thread = await loadThread(item.dataset.thread)
     if (thread) openThread(thread)
     $('historyDrawer').hidden = true
+  }
+  $('historyList').addEventListener('click', openHistoryItem)
+  $('historyList').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') openHistoryItem(e)
   })
   $('exportBtn').addEventListener('click', () => {
     if (!state.thread.messages.length) return toast('Nothing to export yet.')
@@ -970,7 +1203,7 @@ function bindEvents() {
     if (!confirm('Delete all saved ChroMind chats on this device?')) return
     await clearThreads()
     renderHistory()
-    toast('History cleared')
+    toast('Chats deleted')
   })
 
   $('messages').addEventListener('click', async (e) => {
@@ -1059,7 +1292,8 @@ async function init() {
   document.body.classList.toggle('mode-tab', MODE === 'tab')
   hydrateIcons()
   bindEvents()
-  renderProvider()
+  await warmLabels(state.settings)
+  renderPill()
 
   state.windowId = FOLLOW_WINDOW ?? (await api.windows.getCurrent()).id
   await refreshTab()
@@ -1073,7 +1307,7 @@ async function init() {
   onSettingsChanged((settings) => {
     state.settings = settings
     applyTheme(settings.theme)
-    renderProvider()
+    renderPill()
     renderActionGrid()
   })
 

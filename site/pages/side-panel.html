@@ -17,6 +17,13 @@ blurb: Chat about the page you're on, run quick actions, add tabs and screenshot
   <li>The panel follows your active tab. Reopening it brings back the chat you had.</li>
 </ul>
 
+<h2>Pick the AI</h2>
+<p>
+  The pill in the header shows the model and provider answering, with the maker's logo. Click it for the picker:
+  providers on the left, models on the right, depth chips under models that can think harder, and a search box across
+  everything that's ready. See <a href="{{root}}docs/providers/#picker">the picker</a>.
+</p>
+
 <h2>The page bar</h2>
 <p>
   Under the header, ChroMind shows the tab it's reading. The <strong>Page</strong> switch decides whether the page goes with
@@ -60,15 +67,17 @@ blurb: Chat about the page you're on, run quick actions, add tabs and screenshot
 <p>
   The camera button attaches a screenshot of the visible page: handy for charts, designs and image-heavy pages. Right-click
   any image for <em>Describe image</em> or <em>Ask about this image</em>. Claude, Hermes and vision models on
-  OpenAI-compatible servers can see images; the Bridge providers can't yet.
+  API-key providers can see images, as can OpenCode with a Zen key. Apps through the Bridge can't.
 </p>
 
 <h2>Answers</h2>
 <ul>
-  <li>Answers stream in as Markdown, with code blocks you can copy and tables that scroll.</li>
-  <li>Models that think show a collapsible <em>Thinking…</em> section; agents like Hermes show the tools they use.</li>
+  <li>While it works, a small scanner (the one OpenCode uses) shows what's happening: <em>Reading the page</em>, <em>Thinking</em>, <em>Using web_search</em>, <em>Writing</em>, with a timer.</li>
+  <li>Answers stream in as Markdown, with code blocks you can copy and tables that scroll. Each one is labeled with the model and provider that wrote it.</li>
+  <li>Models that think show a collapsible <em>Thinking</em> section; agents like Hermes show the tools they used.</li>
   <li>Under each answer: <strong>Copy</strong>, <strong>Read aloud</strong>, <strong>Regenerate</strong>, and for Claude, <strong>Open in claude.ai</strong>.</li>
   <li><kbd>Esc</kbd> or the stop button ends an answer early.</li>
+  <li>When something's wrong (signed out, a server that doesn't answer), the error says what to do, with a button to the right setting and, where it helps, a command to copy.</li>
 </ul>
 
 <h2>History</h2>

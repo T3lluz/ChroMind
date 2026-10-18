@@ -12,30 +12,40 @@ blurb: When an answer doesn't come, start here.
     <tr><td><em>Sign in to claude.ai in this browser</em></td><td>Open claude.ai in this browser (same profile, and in Firefox the same container) and sign in.</td></tr>
     <tr><td><em>claude.ai wants a quick browser check</em></td><td>Open claude.ai in a tab once so it can finish its check, then retry.</td></tr>
     <tr><td><em>usage limit</em></td><td>Your plan's limit is reached. Wait, or switch provider from the pill.</td></tr>
-    <tr><td>A model choice is ignored</td><td>Free plans can't pick models; use <em>Account default</em>.</td></tr>
+    <tr><td>A model choice is ignored</td><td>Free plans can't pick models; use <em>Claude</em> (claude.ai's default).</td></tr>
   </tbody>
 </table>
 
-<h2>Claude Code and Cursor</h2>
+<h2>Your server</h2>
 <table>
   <thead><tr><th>You see</th><th>Do this</th></tr></thead>
   <tbody>
-    <tr><td><em>ChroMind Bridge is not running</em></td><td>Start it: <code>node chromind-bridge.mjs</code>, or <code>install</code> it to start with your computer.</td></tr>
-    <tr><td><em>the token does not match</em></td><td>Run <code>node chromind-bridge.mjs token</code> and paste it into Settings → Bridge.</td></tr>
-    <tr><td><em>CLI not found</em></td><td>Install the CLI, or set <code>CHROMIND_CLAUDE_BIN</code> / <code>CHROMIND_CURSOR_BIN</code> and restart the Bridge.</td></tr>
-    <tr><td><em>not signed in</em></td><td><code>claude auth login</code> or <code>cursor-agent login</code>, then retry.</td></tr>
-    <tr><td><em>Port 8765 is in use</em></td><td>A Bridge is already running. Or set <code>CHROMIND_BRIDGE_PORT</code> and update the URL in settings.</td></tr>
-    <tr><td>Cursor is slow to start</td><td>Each message starts the CLI (a few seconds). Claude Code starts faster.</td></tr>
+    <tr><td><em>Nothing answered at …</em></td><td>Is the server on, and is this computer on the same tailnet or network? For Hermes on its own, add <code>API_SERVER_HOST=0.0.0.0</code> to the server's <code>~/.hermes/.env</code> and restart <code>hermes gateway</code>.</td></tr>
+    <tr><td><em>Hermes didn't accept that password</em></td><td>The password is Hermes' <code>API_SERVER_KEY</code> from <code>~/.hermes/.env</code>, not your SSH password.</td></tr>
+    <tr><td>A server that worked stops answering</td><td>Settings → AI → Your server → <strong>Connect again</strong>. ChroMind looks again for what's there.</td></tr>
   </tbody>
 </table>
 
-<h2>Hermes</h2>
+<h2>Apps on this PC (Claude Code, Cursor, OpenCode)</h2>
 <table>
   <thead><tr><th>You see</th><th>Do this</th></tr></thead>
   <tbody>
-    <tr><td><em>Can't reach Hermes</em></td><td>Is <code>hermes gateway</code> running with <code>API_SERVER_ENABLED=true</code>? Check the URL and port (8642).</td></tr>
-    <tr><td><em>rejected the key</em></td><td>The API key must match <code>API_SERVER_KEY</code> exactly.</td></tr>
-    <tr><td><em>no chat endpoint</em></td><td>The URL points at the wrong place. Use the server root, like <code>http://127.0.0.1:8642</code>.</td></tr>
+    <tr><td><em>ChroMind Bridge isn't running on this computer</em></td><td>Run <code>node chromind-bridge.mjs install</code> once (copy it from the error). It starts with your computer from then on and pairs by itself.</td></tr>
+    <tr><td><em>… app not found</em></td><td>Install the app, or set <code>CHROMIND_CLAUDE_BIN</code>, <code>CHROMIND_CURSOR_BIN</code> or <code>CHROMIND_OPENCODE_BIN</code> and restart the Bridge.</td></tr>
+    <tr><td><em>Run: claude auth login</em> (or <code>cursor-agent login</code>)</td><td>Sign the app in once, then click <strong>Check again</strong> in Settings → ChroMind Bridge.</td></tr>
+    <tr><td><em>Port 8765 is in use</em></td><td>A Bridge is already running. Or set <code>CHROMIND_BRIDGE_PORT</code> and change the Bridge URL in settings.</td></tr>
+    <tr><td>Cursor is slow to start</td><td>Each message starts the app (a few seconds). Claude Code starts faster.</td></tr>
+    <tr><td>OpenCode asks for a key</td><td>That model isn't free. Pick one marked <em>Free</em>, or add an OpenCode Zen key in its settings card.</td></tr>
+  </tbody>
+</table>
+
+<h2>API keys and local models</h2>
+<table>
+  <thead><tr><th>You see</th><th>Do this</th></tr></thead>
+  <tbody>
+    <tr><td><em>… rejected the key</em></td><td>Paste the key again in the provider's card and click <strong>Test</strong>.</td></tr>
+    <tr><td><em>… is busy or rate limited</em></td><td>Free models have limits. Wait a minute, or pick another model.</td></tr>
+    <tr><td><em>Can't reach … Is it running?</em></td><td>Start Ollama or LM Studio's server, and check the URL and port.</td></tr>
   </tbody>
 </table>
 

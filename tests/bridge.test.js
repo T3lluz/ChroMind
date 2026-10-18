@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { claudeParser, cursorParser, flatten } from '../bridge/chromind-bridge.mjs'
+import { claudeParser, cursorParser, flatten, opencodeParser, splitDepth } from '../bridge/chromind-bridge.mjs'
 
 const collect = (make, lines) => {
   const events = []
@@ -62,4 +62,28 @@ test('flatten turns a chat into a system prompt and one request', () => {
   assert.equal(system, 'Be terse.')
   assert.match(prompt, /<conversation_so_far>\nUser: Hi\n\nAssistant: Hello!\n\n<\/conversation_so_far>/)
   assert.match(prompt, /And now\?$/)
+})
+
+test('OpenCode: text parts join with blank lines, errors mention sign-in for paid models', () => {
+  const { events, parser } = collect(opencodeParser, [
+    { type: 'step_start', part: {} },
+    { type: 'text', part: { type: 'text', text: 'first' } },
+    { type: 'tool_use', part: { tool: 'read' } },
+    { type: 'text', part: { type: 'text', text: 'second' } },
+    { type: 'step_finish', part: {} },
+  ])
+  assert.deepEqual(events, [
+    { type: 'text', text: 'first' },
+    { type: 'tool', name: 'read' },
+    { type: 'text', text: '\n\nsecond' },
+  ])
+  assert.equal(parser.result().text, 'first\n\nsecond')
+  const failed = collect(opencodeParser, [{ type: 'error', error: { data: { message: 'API key required' } } }]).parser
+  assert.match(failed.error(), /opencode auth login/)
+})
+
+test('depth suffixes become Claude Code effort flags', () => {
+  assert.deepEqual(splitDepth('opus@high'), { model: 'opus', effort: 'high' })
+  assert.deepEqual(splitDepth('opus@med'), { model: 'opus', effort: 'medium' })
+  assert.deepEqual(splitDepth('sonnet'), { model: 'sonnet', effort: '' })
 })
