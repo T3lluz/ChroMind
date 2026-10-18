@@ -50,6 +50,19 @@ test('Chromium manifest keeps the side panel and service worker', () => {
   assert.ok(chrome.commands._execute_action)
 })
 
+test('the docs-site content script runs on the docs site only, in both browsers', () => {
+  for (const manifest of [chrome, firefox]) {
+    const site = manifest.content_scripts.find((c) => c.js.includes('content/site.js'))
+    assert.ok(site, 'content/site.js is registered')
+    assert.deepEqual(site.js, ['content/site.js'])
+    // No ports: Firefox doesn't support them in match patterns.
+    assert.deepEqual(site.matches, ['https://t3lluz.github.io/ChroMind/*', 'http://localhost/ChroMind/*'])
+    assert.equal(site.run_at, 'document_start')
+  }
+  const source = readFileSync(resolve(extensionDir, 'content/site.js'), 'utf8')
+  assert.doesNotMatch(source, /postMessage|addEventListener|onMessage|sendMessage|connect\(|\.storage\./)
+})
+
 test('package.json and manifest agree on the version', () => {
   const pkg = JSON.parse(readFileSync(resolve(extensionDir, '../package.json'), 'utf8'))
   assert.equal(pkg.version, chrome.version)

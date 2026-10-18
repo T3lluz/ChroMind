@@ -2,7 +2,8 @@
  * End-to-end smoke test in Playwright's Chromium with the real extension:
  * side panel reads a page, quick action and follow-up answer through
  * ChroMind Bridge (when it's running), slash menu, claude.ai sign-in error
- * path, selection toolbar card, settings page.
+ * path, selection toolbar card, settings page, and the docs install page
+ * (served by scripts/build-site.mjs --serve) seeing the installed version.
  *
  *   npm run test:e2e              assertions only
  *   npm run screenshots           also refreshes site/assets/screens/*.png
@@ -12,7 +13,7 @@
  * signed-in Claude Code CLI; without it they're skipped.
  */
 import assert from 'node:assert/strict'
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawn } from 'node:child_process'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
@@ -266,12 +267,46 @@ await step('extension requests to servers carry no Origin (panel and tabbed page
   assert.deepEqual(await page.evaluate(post, echo), { origin: null })
 })
 
+// The docs site on :4173 (reuses a running npm run dev:site).
+const DOCS = 'http://localhost:4173/ChroMind/'
+const docsUp = () =>
+  fetch(DOCS)
+    .then((r) => r.ok)
+    .catch(() => false)
+let docsServer = null
+if (!(await docsUp())) {
+  docsServer = spawn(process.execPath, [resolve(root, 'scripts/build-site.mjs'), '--serve'], { cwd: root, stdio: 'ignore' })
+  for (let i = 0; i < 50 && !(await docsUp()); i++) await new Promise((r) => setTimeout(r, 200))
+}
+
+await step('docs install page shows the installed version, then an update', async () => {
+  const { version } = JSON.parse(readFileSync(resolve(ext, 'manifest.json'), 'utf8'))
+  const page = await context.newPage()
+  await page.goto(`${DOCS}docs/install/`)
+  const box = page.locator('[data-install-status]')
+  await box.waitFor({ state: 'visible', timeout: 10000 })
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.chromindVersion), version)
+  assert.equal(await box.locator('strong').innerText(), `ChroMind v${version} is installed in this browser.`)
+  assert.equal(await box.evaluate((el) => el.classList.contains('update')), false)
+
+  // A newer published build turns it into an update box with the download.
+  await page.route('**/chromind-chrome.json', (route) =>
+    route.fulfill({ json: { version: '99.0.0', fingerprint: '0'.repeat(64), zip: 'chromind-chrome.zip' } }),
+  )
+  await page.reload()
+  await page.waitForSelector('[data-install-status].update:not([hidden])', { timeout: 10000 })
+  assert.equal(await box.locator('strong').innerText(), 'Update available: v99.0.0')
+  assert.match(await box.locator('a.btn').getAttribute('href'), /chromind-chrome\.zip\?v=99\.0\.0-/)
+  await page.close()
+})
+
 await step('no uncaught errors in extension pages', async () => {
   assert.deepEqual(errors, [])
 })
 
 await context.close()
 server.close()
+docsServer?.kill()
 rmSync(profile, { recursive: true, force: true })
 console.log(results.join('\n'))
 if (SCREENSHOTS) console.log(`Screenshots: ${shots}`)

@@ -80,6 +80,17 @@
       ],
       "run_at": "document_idle",
       "all_frames": false
+    },
+    {
+      "matches": [
+        "https://t3lluz.github.io/ChroMind/*",
+        "http://localhost/ChroMind/*"
+      ],
+      "js": [
+        "content/site.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": false
     }
   ]
 }
