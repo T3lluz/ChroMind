@@ -59,6 +59,10 @@ export function firefoxManifest(version) {
     m.commands._execute_sidebar_action = m.commands._execute_action
     delete m.commands._execute_action
   }
+  // The selection card's "Continue in side panel" button (content/continue.js).
+  m.web_accessible_resources = [
+    { resources: ['content/continue.html', 'content/continue.css', 'content/continue.js'], matches: ['http://*/*', 'https://*/*'] },
+  ]
   m.browser_specific_settings = {
     gecko: {
       id: GECKO_ID,

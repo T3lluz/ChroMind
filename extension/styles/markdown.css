@@ -94,8 +94,9 @@
 
 .md blockquote {
   margin: 0 0 0.75em;
-  padding: 2px 0 2px 12px;
-  border-left: 3px solid rgba(var(--accent-rgb), 0.5);
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--bg-subtle);
   color: var(--text-muted);
 }
 

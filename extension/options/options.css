@@ -100,7 +100,6 @@ body {
 .side a.is-active {
   color: var(--text);
   background: var(--bg-card);
-  box-shadow: inset 3px 0 0 var(--accent);
   font-weight: 600;
 }
 
@@ -654,4 +653,32 @@ code {
   .top-inner {
     padding: 12px 16px;
   }
+}
+
+/* ---------- updates ---------- */
+
+.update-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.update-line strong {
+  display: block;
+  font-size: 0.92rem;
+}
+
+.update-line small {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.update-steps {
+  margin: 0;
+  padding-left: 1.3em;
+  font-size: 0.84rem;
+  color: var(--text-muted);
+  line-height: 1.7;
 }

@@ -16,7 +16,6 @@ import {
   readLink,
   readSelection,
   readTab,
-  seekVideo,
 } from '../lib/extract.js'
 import {
   clearThreads,
@@ -28,6 +27,7 @@ import {
   threadToMarkdown,
 } from '../lib/history.js'
 import { icon } from '../lib/icons.js'
+import { openLink, playAt, videoId } from '../lib/links.js'
 import { DEPTH_LABEL, locate, pickVariant } from '../lib/models.js'
 import { actionPrompt, actionsFor, findAction, slashName, TARGETS, threadTitle } from '../lib/prompts.js'
 import { deleteConversation } from '../lib/providers/claude-web.js'
@@ -43,6 +43,7 @@ import {
   warmLabels,
 } from '../lib/providers/index.js'
 import { applyTheme, getSettings, onSettingsChanged, saveSettings } from '../lib/settings.js'
+import { checkForUpdate } from '../lib/updates.js'
 
 const $ = (id) => document.getElementById(id)
 const esc = (s) => globalThis.CMMarkdown.escape(s ?? '')
@@ -959,11 +960,19 @@ function download(name, text) {
 
 /* ---------- requests from menus and shortcuts ---------- */
 
+const handled = new Set()
+
 async function handleRequest(req) {
   if (!req) return
+  // The same request can arrive twice (port and broadcast); run it once.
+  if (req.id) {
+    if (handled.has(req.id)) return
+    handled.add(req.id)
+  }
   if (req.scope === 'thread') {
-    const thread = req.threadId && (await loadThread(req.threadId))
+    const thread = req.threadId && (await findThread(req.threadId))
     if (thread) openThread(thread)
+    else toast('That chat is gone.')
     return
   }
   let tab = state.tab
@@ -1004,6 +1013,14 @@ async function handleRequest(req) {
   } catch (err) {
     toast(err?.message || String(err))
   }
+}
+
+/** A saved chat, or one the selection card kept for this session only (history off). */
+async function findThread(id) {
+  const saved = await loadThread(id)
+  if (saved) return saved
+  const key = `inline:${id}`
+  return (await api.storage.session?.get(key).catch(() => ({})))?.[key] ?? null
 }
 
 function focusInput(placeholder) {
@@ -1217,6 +1234,11 @@ function bindEvents() {
     }
     const ts = e.target.closest('.cm-ts')
     if (ts) return seekTo(Number(ts.dataset.seconds))
+    const link = e.target.closest('.md a[href]')
+    if (link && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.button === 0) {
+      e.preventDefault()
+      return openLink(link.href, state.windowId).catch((err) => toast(err?.message || String(err)))
+    }
     const btn = e.target.closest('[data-act]')
     if (!btn) return
     const id = btn.closest('[data-id]')?.dataset.id
@@ -1261,12 +1283,13 @@ function bindEvents() {
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => applyTheme(state.settings.theme))
 }
 
+/** [mm:ss] in an answer: seek the video the chat is about, in the tab that plays it. */
 async function seekTo(seconds) {
-  const ctx = state.thread.messages.flatMap((m) => m.contexts ?? []).find((c) => c.kind === 'youtube')
-  let tabId = ctx?.tabId
-  if (state.tab && ctx && state.tab.url?.split('&')[0] === ctx.url?.split('&')[0]) tabId = state.tab.id
-  if (typeof tabId !== 'number') return toast('Open the video tab to jump to that moment.')
-  await seekVideo(tabId, seconds).catch(() => toast('Could not reach the video tab.'))
+  const videos = state.thread.messages.flatMap((m) => m.contexts ?? []).filter((c) => c.kind === 'youtube')
+  // Several videos in one chat: prefer the one on screen.
+  const id = videos.map((c) => videoId(c.url)).find((v) => v && v === videoId(state.tab?.url)) ?? videoId(videos.at(-1)?.url)
+  if (!id) return toast('This chat has no video to jump in.')
+  await playAt(id, seconds, state.windowId).catch(() => toast('Could not reach the video tab.'))
 }
 
 function speak(text) {
@@ -1312,6 +1335,15 @@ async function init() {
   })
 
   if (MODE === 'panel') {
+    // The background hands over menu and shortcut requests. Its service
+    // worker sleeps after ~30 s and takes the port down with it, so later
+    // requests come as a broadcast to this window instead.
+    api.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+      if (msg?.type !== 'panel-request' || msg.windowId !== state.windowId) return false
+      handleRequest(msg.request)
+      sendResponse({ taken: true })
+      return false
+    })
     const port = api.runtime.connect({ name: 'panel' })
     port.onMessage.addListener((msg) => {
       if (msg.type === 'request') handleRequest(msg.request)
@@ -1319,9 +1351,22 @@ async function init() {
     port.postMessage({ type: 'hello', windowId: state.windowId })
   } else {
     const q = PARAMS.get('q')
-    if (q) submit({ text: q, includePage: false })
+    const threadId = PARAMS.get('thread')
+    if (threadId) handleRequest({ scope: 'thread', threadId })
+    else if (q) submit({ text: q, includePage: false })
   }
   $('input').focus()
+  showUpdateNote()
+}
+
+/** "ChroMind 0.3.2 is out" under the actions; checks at most twice a day. */
+async function showUpdateNote() {
+  const info = await checkForUpdate().catch(() => null)
+  if (!info?.available) return
+  const note = $('updateNote')
+  note.innerHTML = `ChroMind ${esc(info.latest)} is out · <strong>Update</strong>`
+  note.hidden = false
+  note.onclick = () => openOptions('updates')
 }
 
 init()

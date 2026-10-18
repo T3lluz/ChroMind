@@ -398,6 +398,62 @@ await step('docs install page shows the installed version, then an update', asyn
   await page.close()
 })
 
+await step('settings: Updates offers the new zip and a reload', async () => {
+  await context.route('**/chromind-chrome.json', (route) =>
+    route.fulfill({ json: { version: '99.0.0', fingerprint: '0'.repeat(64), zip: 'chromind-chrome.zip' } }),
+  )
+  await panel.evaluate(() => chrome.storage.local.remove('updateInfo'))
+  const page = await context.newPage()
+  await page.goto(extUrl('options/options.html#updates'))
+  await page.waitForFunction(() => document.getElementById('updateTitle').textContent.includes('99.0.0'), null, { timeout: 10000 })
+  assert.ok(await page.locator('#updateDownload').isVisible())
+  assert.match(await page.locator('#updateDownload').getAttribute('href'), /chromind-chrome\.zip\?v=99\.0\.0$/)
+  assert.ok(await page.locator('#reloadExt').isVisible())
+  await page.close()
+  await context.unroute('**/chromind-chrome.json')
+})
+
+await step('the open panel still gets requests after the service worker restarts', async () => {
+  const now = Date.now()
+  const thread = {
+    id: 'e2e-inline',
+    title: 'From the card',
+    createdAt: now,
+    updatedAt: now,
+    providerState: {},
+    messages: [
+      { id: 'u1', role: 'user', createdAt: now, text: 'Card question', contexts: [] },
+      { id: 'a1', role: 'assistant', createdAt: now, text: `See [the article](${articleUrl}).`, providerName: 'Test' },
+    ],
+  }
+  await panel.evaluate((t) => chrome.storage.session.set({ [`inline:${t.id}`]: t }), thread)
+  // Stopping the worker takes its port to the panel down with it, as an idle stop does.
+  const cdp = await context.newCDPSession(panel)
+  const { targetInfos } = await cdp.send('Target.getTargets')
+  const worker = targetInfos.find((t) => t.type === 'service_worker' && t.url.includes(extId))
+  await cdp.send('Target.closeTarget', { targetId: worker.targetId })
+  await sleep(500)
+  const page = await context.newPage()
+  await page.goto(extUrl('options/options.html'))
+  const res = await page.evaluate(async (windowId) => {
+    const tab = await chrome.tabs.getCurrent()
+    if (tab.windowId !== windowId) return { wrongWindow: tab.windowId }
+    return chrome.runtime.sendMessage({ type: 'open-thread', threadId: 'e2e-inline' })
+  }, windowId)
+  assert.deepEqual(res, { opened: true })
+  await panel.waitForFunction(() => document.getElementById('messages').textContent.includes('Card question'), null, {
+    timeout: 10000,
+  })
+  // A link to a page that's already open switches to its tab instead of opening another.
+  const before = context.pages().length
+  await panel.locator('.md a').first().click()
+  await sleep(600)
+  assert.equal(context.pages().length, before)
+  const active = await page.evaluate((windowId) => chrome.tabs.query({ active: true, windowId }), windowId)
+  assert.equal(active[0].url, articleUrl)
+  await page.close()
+})
+
 await step('no uncaught errors in extension pages', async () => {
   assert.deepEqual(errors, [])
 })

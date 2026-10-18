@@ -64,3 +64,14 @@ test('timestamps become seek buttons only when asked', () => {
   assert.match(render('At [4:12] and (1:02:03)', { timestamps: true }), /data-seconds="252">4:12<\/button>.*data-seconds="3723"/)
   assert.ok(!render('At [4:12]').includes('<button'))
 })
+
+test('YouTube links carry the video id and start time', () => {
+  const { youTube } = globalThis.CMMarkdown
+  assert.deepEqual(youTube('https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=83s'), { id: 'dQw4w9WgXcQ', seconds: 83 })
+  assert.deepEqual(youTube('https://youtu.be/dQw4w9WgXcQ?t=1m5s'), { id: 'dQw4w9WgXcQ', seconds: 65 })
+  assert.deepEqual(youTube('https://m.youtube.com/shorts/dQw4w9WgXcQ'), { id: 'dQw4w9WgXcQ', seconds: null })
+  assert.equal(youTube('https://example.com/watch?v=dQw4w9WgXcQ'), null)
+  const html = render('[1:23](https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=83) and https://youtu.be/dQw4w9WgXcQ?t=2h')
+  assert.match(html, /data-yt="dQw4w9WgXcQ" data-seconds="83">1:23<\/a>/)
+  assert.match(html, /data-yt="dQw4w9WgXcQ" data-seconds="7200">https:\/\/youtu\.be/)
+})

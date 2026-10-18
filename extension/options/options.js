@@ -13,6 +13,7 @@ import {
   testProvider,
 } from '../lib/providers/index.js'
 import { applyTheme, DEFAULTS, getSettings, saveSettings } from '../lib/settings.js'
+import { checkForUpdate, updateNow } from '../lib/updates.js'
 
 const $ = (id) => document.getElementById(id)
 const esc = (s) => globalThis.CMMarkdown.escape(s ?? '')
@@ -491,6 +492,59 @@ function bindData() {
   })
 }
 
+/* ---------- updates ---------- */
+
+function ago(ts) {
+  if (!ts) return ''
+  const min = Math.round((Date.now() - ts) / 60000)
+  if (min < 1) return 'just now'
+  if (min < 60) return `${min} min ago`
+  const h = Math.round(min / 60)
+  return h < 48 ? `${h} h ago` : `${Math.round(h / 24)} days ago`
+}
+
+async function renderUpdates({ fresh = false } = {}) {
+  $('updateHint').textContent = isFirefox
+    ? 'Firefox installs new versions by itself, about once a day. Update now skips the wait.'
+    : 'Chromium can’t update an extension you loaded from a folder, so new versions come as a zip.'
+  $('updateStatus').textContent = 'Checking'
+  $('updateStatus').className = 'status'
+  const info = await checkForUpdate({ fresh })
+  $('updateTitle').textContent = info.available ? `ChroMind ${info.latest} is out` : `ChroMind ${info.current}`
+  $('updateMeta').textContent = info.error
+    ? info.error
+    : info.available
+      ? `You have ${info.current}.`
+      : `Up to date${info.checkedAt ? ` · checked ${ago(info.checkedAt)}` : ''}`
+  $('updateStatus').textContent = info.error ? 'Offline' : info.available ? 'Update available' : 'Latest'
+  $('updateStatus').className = `status ${info.error ? 'bad' : info.available ? '' : 'ok'}`
+  $('updateNow').hidden = !isFirefox || !info.available
+  $('updateDownload').hidden = isFirefox || !info.available
+  $('updateDownload').href = info.download
+  $('updateSteps').hidden = isFirefox || !info.available
+  $('reloadExt').hidden = isFirefox
+}
+
+function bindUpdates() {
+  $('updateCheck').addEventListener('click', () => renderUpdates({ fresh: true }))
+  $('reloadExt').addEventListener('click', () => api.runtime.reload())
+  $('updateNow').addEventListener('click', async () => {
+    $('updateStatus').textContent = 'Updating'
+    const status = await updateNow().catch((err) => err?.message || 'failed')
+    if (status === 'update_available') {
+      $('updateMeta').textContent = 'Installing. ChroMind restarts on the new version in a moment.'
+    } else if (status === 'throttled') {
+      $('updateMeta').textContent = 'Firefox checked a moment ago. Try again in a few minutes.'
+    } else if (status === 'no_update') {
+      $('updateMeta').textContent = 'Firefox doesn’t see the new version yet. It can take a few minutes after a release.'
+    } else {
+      $('updateMeta').textContent = `The update didn’t start (${status}).`
+    }
+    $('updateStatus').textContent = ''
+  })
+  renderUpdates()
+}
+
 async function checkPermissions() {
   const has = await api.permissions.contains({ origins: ['<all_urls>'] }).catch(() => true)
   $('permissionBox').hidden = has
@@ -548,6 +602,7 @@ async function init() {
   renderActions()
   bindActions()
   bindData()
+  bindUpdates()
   renderShortcuts()
   checkPermissions()
   checkBridge(false)

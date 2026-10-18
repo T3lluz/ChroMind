@@ -46,6 +46,8 @@ npm run dev:zen       # same, in Zen Browser</code></pre>
     <tr><td>Background</td><td>service worker (module)</td><td>event page (module)</td></tr>
     <tr><td>Toolbar button</td><td><code>openPanelOnActionClick</code></td><td><code>sidebarAction.toggle()</code></td></tr>
     <tr><td>Open shortcut</td><td><code>_execute_action</code></td><td><code>_execute_sidebar_action</code></td></tr>
+    <tr><td>Card → panel</td><td>message from the content script (the click's gesture carries over)</td><td>the button is <code>content/continue.html</code>, a web-accessible frame that calls <code>sidebarAction.open()</code></td></tr>
+    <tr><td>Panel requests</td><td colspan="2">port <code>panel</code>, then a <code>panel-request</code> broadcast when the background restarted and the port is gone</td></tr>
     <tr><td>Identity, updates</td><td>none</td><td><code>browser_specific_settings.gecko</code>: id, <code>update_url</code>, data collection</td></tr>
   </tbody>
 </table>

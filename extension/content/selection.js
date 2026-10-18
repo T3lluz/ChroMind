@@ -15,6 +15,7 @@
   const api = globalThis.browser ?? globalThis.chrome
   const md = globalThis.CMMarkdown
   const HOST = location.hostname
+  const IS_FIREFOX = api.runtime.getURL('').startsWith('moz-extension:')
   let settings = { selectionToolbar: true, toolbarBlocklist: [], translateTo: 'English', theme: 'system', customActions: [] }
 
   api.storage.local.get('settings').then(({ settings: s }) => {
@@ -85,7 +86,7 @@ button { font: inherit; color: inherit; }
 .icon-btn { width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 7px;
   background: transparent; color: var(--muted); cursor: pointer; }
 .icon-btn:hover { background: var(--hover); color: var(--text); }
-.quote { margin: 10px 12px 0; padding: 6px 10px; border-left: 3px solid rgba(var(--accent-rgb),.5); color: var(--muted);
+.quote { margin: 10px 12px 0; padding: 6px 10px; border-radius: 8px; background: var(--subtle); color: var(--muted);
   font-size: 12px; max-height: 54px; overflow: hidden; white-space: pre-wrap; }
 .ask { display: flex; gap: 6px; padding: 10px 12px 0; }
 .ask input { flex: 1; min-width: 0; height: 34px; padding: 0 11px; border-radius: 10px; border: 1px solid var(--border-strong);
@@ -103,6 +104,12 @@ button { font: inherit; color: inherit; }
   background: var(--subtle); font-size: 12px; font-weight: 600; cursor: pointer; }
 .foot .btn:hover { border-color: rgba(var(--accent-rgb),.45); color: var(--accent); }
 .foot .btn.primary { background: var(--accent); color: var(--ink); border-color: transparent; }
+.continue-wrap { position: relative; display: inline-flex; }
+.continue-wrap iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; border-radius: 8px;
+  color-scheme: normal; visibility: hidden; }
+.continue-wrap.framed iframe { visibility: visible; }
+.md .cm-ts { display: inline-flex; padding: 0 6px; margin: 0 1px; border-radius: 6px; border: 1px solid rgba(var(--accent-rgb),.3);
+  background: rgba(var(--accent-rgb),.1); color: var(--accent); font: 600 11.5px var(--mono); cursor: pointer; }
 .foot .hint { flex: 1; text-align: right; font-size: 11px; color: var(--muted); padding-right: 4px; }
 .md { font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
 .md > :first-child { margin-top: 0; } .md > :last-child { margin-bottom: 0; }
@@ -114,7 +121,7 @@ button { font: inherit; color: inherit; }
 .md .cm-code-head { display: flex; justify-content: space-between; align-items: center; padding: 3px 6px 3px 10px; background: var(--subtle);
   font: 11px var(--mono); color: var(--muted); }
 .md .cm-copy-code { border: 0; background: none; font-size: 11px; color: var(--muted); cursor: pointer; }
-.md a { color: var(--accent-2); } .md blockquote { margin: 0 0 .7em; padding-left: 10px; border-left: 3px solid rgba(var(--accent-rgb),.45); color: var(--muted); }
+.md a { color: var(--accent-2); } .md blockquote { margin: 0 0 .7em; padding: 6px 10px; border-radius: 8px; background: var(--subtle); color: var(--muted); }
 .md table { border-collapse: collapse; font-size: 12px; } .md th, .md td { border: 1px solid var(--border); padding: 4px 8px; text-align: left; }
 .md .cm-table { overflow-x: auto; margin-bottom: .7em; }
 @keyframes pop { from { opacity: 0; transform: translateY(4px) scale(.98); } }
@@ -279,6 +286,7 @@ button { font: inherit; color: inherit; }
   }
 
   function closeCard() {
+    card?._cleanup?.()
     card?._port?.disconnect()
     card?.remove()
     card = null
@@ -295,7 +303,7 @@ button { font: inherit; color: inherit; }
       ${ask ? `<form class="ask"><input type="text" placeholder="Ask about the selection…" aria-label="Question"><button type="submit" title="Ask">${ICONS.send}</button></form>` : ''}
       <div class="body" ${ask ? 'hidden' : ''}><div class="md"></div></div>
       <div class="foot" hidden><button type="button" class="btn" data-copy>${ICONS.copy}Copy</button>
-        <button type="button" class="btn primary" data-continue>${ICONS.panel}Continue in side panel</button><span class="hint"></span></div>`
+        <span class="continue-wrap"><button type="button" class="btn primary" data-continue>${ICONS.panel}Continue in side panel</button></span><span class="hint"></span></div>`
     card.querySelector('.quote').textContent = text.length > 280 ? text.slice(0, 280) + '…' : text
     rootEl.append(card)
     placeCard(card)
@@ -322,11 +330,54 @@ button { font: inherit; color: inherit; }
     }
   }
 
+  /** The YouTube video playing on this page, if any. */
+  const pageVideo = () => (/^\/(watch|shorts\/|live\/)/.test(location.pathname) ? md.youTube(location.href)?.id : null)
+
+  function seekHere(seconds) {
+    const video = document.querySelector('video')
+    if (!video) return false
+    video.currentTime = seconds
+    video.play?.()
+    return true
+  }
+
+  /** Timestamps and links to this page's video seek it instead of opening a new tab. */
+  function onAnswerClick(e) {
+    const ts = e.target.closest('.cm-ts')
+    if (ts) return seekHere(Number(ts.dataset.seconds))
+    const link = e.target.closest('a[data-yt]')
+    if (!link || e.ctrlKey || e.metaKey || e.shiftKey || link.dataset.yt !== pageVideo()) return
+    e.preventDefault()
+    if (link.dataset.seconds) seekHere(Number(link.dataset.seconds))
+  }
+
+  /**
+   * Firefox only opens the sidebar from the extension's own UI, so there the
+   * button is an extension frame (content/continue.html) laid over ours. Ours
+   * stays as the fallback if the page blocks the frame.
+   */
+  function frameContinue(wrap, threadId) {
+    const frame = document.createElement('iframe')
+    const theme = rootEl.classList.contains('light') ? 'light' : 'dark'
+    frame.src = api.runtime.getURL(`content/continue.html?thread=${encodeURIComponent(threadId)}&theme=${theme}`)
+    frame.title = 'Continue in side panel'
+    const onMessage = (e) => {
+      if (e.source !== frame.contentWindow) return
+      if (e.data?.chromind === 'continue-ready') wrap.classList.add('framed')
+      if (e.data?.chromind === 'continued' && e.data.ok) closeCard()
+    }
+    addEventListener('message', onMessage)
+    card._cleanup = () => removeEventListener('message', onMessage)
+    wrap.append(frame)
+  }
+
   function run({ actionId, question, text }) {
     const body = card.querySelector('.body')
     const out = card.querySelector('.md')
     const foot = card.querySelector('.foot')
     const sub = card.querySelector('.card-title small')
+    const opts = { timestamps: !!pageVideo() }
+    out.addEventListener('click', onAnswerClick)
     body.hidden = false
     out.innerHTML = '<div class="waiting"><span class="waiting-label">Working</span></div>'
     out.querySelector('.waiting').prepend(globalThis.CMScanner.create({ size: 5, gap: 2 }))
@@ -341,7 +392,7 @@ button { font: inherit; color: inherit; }
         // Keep the reader at the top of a short answer; only follow the
         // stream if they scrolled down to the end themselves.
         const following = body.scrollTop > 0 && body.scrollHeight - body.scrollTop - body.clientHeight < 40
-        out.innerHTML = md.render(answer)
+        out.innerHTML = md.render(answer, opts)
         if (following) body.scrollTop = body.scrollHeight
         keepOnScreen()
       })
@@ -359,10 +410,11 @@ button { font: inherit; color: inherit; }
       } else if (msg.type === 'done') {
         card.classList.remove('streaming')
         threadId = msg.threadId
-        out.innerHTML = md.render(answer)
+        out.innerHTML = md.render(answer, opts)
         foot.hidden = false
         keepOnScreen()
         foot.querySelector('[data-continue]').hidden = !threadId
+        if (threadId && IS_FIREFOX) frameContinue(foot.querySelector('.continue-wrap'), threadId)
       } else if (msg.type === 'error') {
         card.classList.remove('streaming')
         const err = msg.error
@@ -388,7 +440,7 @@ button { font: inherit; color: inherit; }
     foot.querySelector('[data-continue]').onclick = async () => {
       const res = await api.runtime.sendMessage({ type: 'open-thread', threadId }).catch(() => null)
       if (res?.opened) closeCard()
-      else foot.querySelector('.hint').textContent = 'Press Alt+Shift+A to open the panel'
+      else foot.querySelector('.hint').textContent = 'Could not open the panel. Try Alt+Shift+A.'
     }
   }
 

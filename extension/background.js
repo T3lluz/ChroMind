@@ -27,12 +27,22 @@ const panels = new Map()
 /** Requests waiting for a panel to open, by window id. */
 const pending = new Map()
 
+/**
+ * Hands REQUEST to the panel in WINDOWID. Three ways in, because the panel
+ * may be open already, still loading, or open while this service worker
+ * restarted (which drops the port):
+ *   1. the panel's port, when it's connected;
+ *   2. a broadcast the open panel answers ("panel-request");
+ *   3. a pending request the panel picks up when it says hello.
+ * The panel ignores a request id it has already run.
+ */
 async function deliver(windowId, request) {
+  request = { id: crypto.randomUUID(), ...request }
   const port = panels.get(windowId)
   if (port) {
     try {
       port.postMessage({ type: 'request', request })
-      return
+      return true
     } catch {
       panels.delete(windowId)
     }
@@ -40,6 +50,12 @@ async function deliver(windowId, request) {
   pending.set(windowId, request)
   // The service worker can restart before the panel connects.
   await api.storage.session?.set({ [`pending:${windowId}`]: request }).catch(() => {})
+  const answer = await api.runtime.sendMessage({ type: 'panel-request', windowId, request }).catch(() => null)
+  if (answer?.taken) {
+    await takePending(windowId)
+    return true
+  }
+  return false
 }
 
 async function takePending(windowId) {
@@ -177,9 +193,11 @@ api.omnibox?.onInputEntered.addListener((text, disposition) => {
 api.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg?.type === 'open-thread') {
     const tab = sender.tab
-    const opening = openPanel({ tabId: tab?.id, windowId: tab?.windowId })
-    deliver(tab?.windowId, { scope: 'thread', threadId: msg.threadId })
-    opening.then((opened) => sendResponse({ opened }))
+    // Chromium carries the click's user gesture through the message.
+    // Firefox doesn't, so the card's button there is an extension frame
+    // that opens the sidebar itself and says so (msg.opened).
+    const opening = msg.opened ? Promise.resolve(true) : openPanel({ tabId: tab?.id, windowId: tab?.windowId })
+    continueThread(tab, msg.threadId, opening).then(sendResponse, () => sendResponse({ opened: false }))
     return true
   }
   if (msg?.type === 'open-options') {
@@ -188,6 +206,28 @@ api.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
   return false
 })
+
+/**
+ * Shows thread THREADID in the panel of TAB's window. If the panel can't be
+ * opened (no user gesture) and isn't open already, the chat opens as a tab
+ * so the button always does something.
+ */
+async function continueThread(tab, threadId, opening) {
+  const windowId = tab?.windowId ?? (await api.windows.getLastFocused()).id
+  const opened = await opening
+  const delivered = await deliver(windowId, { scope: 'thread', threadId })
+  if (opened || delivered || (await panelIsOpen(windowId))) return { opened: true }
+  await takePending(windowId)
+  const url = api.runtime.getURL(`sidepanel/sidepanel.html?mode=tab&thread=${encodeURIComponent(threadId)}`)
+  await api.tabs.create({ url, windowId, ...(tab ? { index: tab.index + 1, openerTabId: tab.id } : {}) })
+  return { opened: true, tab: true }
+}
+
+async function panelIsOpen(windowId) {
+  if (api.sidebarAction?.isOpen) return api.sidebarAction.isOpen({ windowId }).catch(() => false)
+  const contexts = await api.runtime.getContexts?.({ contextTypes: ['SIDE_PANEL'], windowIds: [windowId] }).catch(() => [])
+  return !!contexts?.length
+}
 
 /* ---------- inline answers for the selection toolbar ---------- */
 
@@ -247,8 +287,11 @@ function handleInline(port) {
       if (result?.providerState) thread.providerState[settings.provider] = result.providerState
       assistant.done = true
       thread.messages.push(assistant)
+      // With history off the chat still continues in the panel: it's kept
+      // for this browser session only.
       if (settings.saveHistory) await saveThread(thread)
-      port.postMessage({ type: 'done', threadId: settings.saveHistory ? thread.id : null })
+      else await api.storage.session?.set({ [`inline:${thread.id}`]: thread }).catch(() => {})
+      port.postMessage({ type: 'done', threadId: thread.id })
     } catch (err) {
       try {
         port.postMessage({ type: 'error', error: serializeError(err) })

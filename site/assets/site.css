@@ -504,26 +504,9 @@ img {
   background: var(--bg-card);
 }
 
-.nav-group a[aria-current="page"]::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 7px;
-  bottom: 7px;
-  width: 3px;
-  border-radius: 3px;
-  background: var(--grad);
-}
-
-.toc ul {
-  border-left: 1px solid var(--border-strong);
-}
-
 .toc a {
   display: block;
-  margin-left: -1px;
-  padding: 4px 12px;
-  border-left: 1px solid transparent;
+  padding: 4px 0;
   color: var(--text-faint);
   text-decoration: none;
   font-size: 0.84rem;
@@ -535,7 +518,6 @@ img {
 
 .toc a.is-active {
   color: var(--text);
-  border-left-color: var(--accent);
   font-weight: 600;
 }
 
@@ -605,7 +587,7 @@ img {
 }
 
 .prose li::marker {
-  color: var(--accent);
+  color: var(--text-faint);
 }
 
 .prose code {
@@ -760,10 +742,11 @@ img {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--grad);
-  color: var(--accent-ink);
-  font-weight: 800;
-  font-size: 0.86rem;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-subtle);
+  color: var(--text);
+  font-weight: 700;
+  font-size: 0.84rem;
 }
 
 .steps > li > strong:first-child {

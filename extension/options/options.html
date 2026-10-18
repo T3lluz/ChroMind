@@ -35,6 +35,7 @@
         <a href="#actions">Quick actions</a>
         <a href="#shortcuts">Shortcuts</a>
         <a href="#data">Data &amp; privacy</a>
+        <a href="#updates">Updates</a>
       </nav>
 
       <main class="content">
@@ -146,7 +147,7 @@
           <div class="section-head">
             <h2>Data &amp; privacy</h2>
             <p class="hint">
-              ChroMind has no server. Questions and page text go only to the AI you pick. Chats, keys and passwords stay in this browser.
+              ChroMind has no server of its own. Questions and page text go only to the AI you pick. Chats, keys and passwords stay in this browser.
             </p>
           </div>
           <div class="card">
@@ -158,6 +159,31 @@
               <button type="button" class="btn" id="exportSettings"><span data-icon="download"></span>Export settings</button>
               <label class="btn"><span data-icon="plus"></span>Import settings<input type="file" id="importSettings" accept="application/json" hidden /></label>
               <button type="button" class="btn danger" id="clearHistory"><span data-icon="trash"></span>Delete all chats</button>
+            </div>
+          </div>
+        </section>
+
+        <section id="updates" class="section">
+          <div class="section-head">
+            <h2>Updates</h2>
+            <p class="hint" id="updateHint"></p>
+          </div>
+          <div class="card">
+            <div class="update-line">
+              <span><strong id="updateTitle">Checking for updates</strong><small id="updateMeta"></small></span>
+              <span class="status" id="updateStatus"></span>
+            </div>
+            <ol class="update-steps" id="updateSteps" hidden>
+              <li>Download the new zip.</li>
+              <li>Unzip it over the folder you loaded ChroMind from, replacing the files.</li>
+              <li>Click <strong>Reload ChroMind</strong>. Your settings and chats stay.</li>
+            </ol>
+            <div class="btn-row">
+              <button type="button" class="btn primary" id="updateNow" hidden><span data-icon="download"></span>Update now</button>
+              <a class="btn primary" id="updateDownload" href="#" hidden><span data-icon="download"></span>Download the zip</a>
+              <button type="button" class="btn" id="reloadExt" hidden><span data-icon="refresh"></span>Reload ChroMind</button>
+              <button type="button" class="btn" id="updateCheck"><span data-icon="refresh"></span>Check now</button>
+              <a class="btn" href="https://t3lluz.github.io/ChroMind/docs/changelog/" target="_blank" rel="noopener"><span data-icon="book"></span>What's new</a>
             </div>
           </div>
         </section>

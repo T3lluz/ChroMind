@@ -43,6 +43,13 @@ test('Firefox manifest: sidebar, event page, gecko id, no Chromium-only keys', (
   assert.equal(firefox.version, chrome.version)
 })
 
+test('Firefox: the card continue button frame is web-accessible and exists', () => {
+  const [entry] = firefox.web_accessible_resources
+  assert.ok(entry.resources.includes('content/continue.html'))
+  for (const file of entry.resources) assert.ok(existsSync(resolve(extensionDir, file)), file)
+  assert.equal(chrome.web_accessible_resources, undefined)
+})
+
 test('Chromium manifest keeps the side panel and service worker', () => {
   assert.equal(chrome.manifest_version, 3)
   assert.ok(chrome.permissions.includes('sidePanel'))

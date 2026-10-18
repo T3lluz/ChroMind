@@ -7,6 +7,8 @@
  * Classic script so it works in content scripts too: sets
  * globalThis.CMMarkdown = { render(markdown, options) }.
  * options.timestamps turns [mm:ss] / [h:mm:ss] into seek buttons.
+ * Links to a YouTube video carry data-yt (the video id) and data-seconds
+ * (from t=), so a click can seek a tab that already plays the video.
  */
 ;(function () {
   const esc = (s) =>
@@ -19,6 +21,35 @@
       .split(':')
       .map(Number)
       .reduce((acc, n) => acc * 60 + n, 0)
+  }
+
+  /** { id, seconds } for a YouTube video link, else null. */
+  function youTube(url) {
+    let u
+    try {
+      u = new URL(url)
+    } catch {
+      return null
+    }
+    const host = u.hostname.replace(/^(www\.|m\.|music\.)/, '')
+    let id = ''
+    if (host === 'youtu.be') id = u.pathname.slice(1).split('/')[0]
+    else if (host === 'youtube.com') {
+      if (u.pathname === '/watch') id = u.searchParams.get('v') ?? ''
+      else id = /^\/(?:shorts|live|embed)\/([^/]+)/.exec(u.pathname)?.[1] ?? ''
+    }
+    if (!/^[\w-]{6,20}$/.test(id)) return null
+    const t = u.searchParams.get('t') ?? u.searchParams.get('start') ?? /(?:^|&)t=([^&]+)/.exec(u.hash.slice(1))?.[1] ?? ''
+    let seconds = null
+    const hms = /^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s?)?$/.exec(t)
+    if (t && hms) seconds = Number(hms[1] ?? 0) * 3600 + Number(hms[2] ?? 0) * 60 + Number(hms[3] ?? 0)
+    return { id, seconds }
+  }
+
+  function anchor(url, label) {
+    const yt = youTube(url)
+    const data = yt ? ` data-yt="${esc(yt.id)}"${yt.seconds != null ? ` data-seconds="${yt.seconds}"` : ''}` : ''
+    return `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer"${data}>${label}</a>`
   }
 
   function inline(src, opts) {
@@ -35,7 +66,9 @@
     })
     s = esc(s)
     s = s.replace(/(^|[\s(])((?:https?:\/\/)[^\s<]+[^\s<.,:;!?)'"\]])/g, (m, pre, url) => {
-      return `${pre}<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`
+      // URL is already escaped here; anchor() escapes again, so undo it once.
+      const raw = url.replace(/&(amp|lt|gt|quot|#39);/g, (_, e) => ({ amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'" })[e])
+      return `${pre}${anchor(raw, url)}`
     })
     s = s
       .replace(/\*\*\*(?=\S)([\s\S]*?\S)\*\*\*/g, '<strong><em>$1</em></strong>')
@@ -51,7 +84,7 @@
     }
     s = s.replace(/\u0001(\d+)\u0001/g, (_, i) => {
       const { text, url } = links[i]
-      return `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${inline(text, { ...opts, timestamps: false })}</a>`
+      return anchor(url, inline(text, { ...opts, timestamps: false }))
     })
     return s.replace(/\u0000(\d+)\u0000/g, (_, i) => codes[i])
   }
@@ -194,5 +227,5 @@
     return html
   }
 
-  globalThis.CMMarkdown = { render, escape: esc }
+  globalThis.CMMarkdown = { render, escape: esc, youTube }
 })()

@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "ChroMind",
   "short_name": "ChroMind",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "An AI side panel for any page. Use Claude, OpenCode's free models, your own server with Hermes, or your API keys.",
   "minimum_chrome_version": "116",
   "icons": {

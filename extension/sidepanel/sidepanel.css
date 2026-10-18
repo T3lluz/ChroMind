@@ -449,8 +449,6 @@ body.mode-tab .shell {
 }
 
 .thinking {
-  border-left: 2px solid rgba(var(--accent-rgb), 0.35);
-  padding-left: 10px;
   font-size: 0.74rem;
   color: var(--text-muted);
 }
@@ -972,12 +970,13 @@ body.mode-tab .shell {
 .rail-item.is-current::after {
   content: "";
   position: absolute;
-  left: -7px;
-  top: 9px;
-  bottom: 9px;
-  width: 3px;
-  border-radius: 3px;
+  right: 3px;
+  bottom: 3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
   background: var(--accent);
+  box-shadow: 0 0 0 2px var(--bg-elevated);
 }
 
 .rail-item.is-off {
@@ -1236,10 +1235,6 @@ body.mode-tab .shell {
   background: var(--bg-card);
 }
 
-.history-item.is-current {
-  box-shadow: inset 2px 0 0 var(--accent);
-}
-
 .history-item strong {
   display: block;
   font-size: 0.78rem;
@@ -1338,4 +1333,28 @@ body.mode-tab .shell {
   .app-logo {
     display: none;
   }
+}
+
+.update-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-subtle);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.74rem;
+  cursor: pointer;
+}
+
+.update-note:hover {
+  color: var(--text);
+}
+
+.update-note strong {
+  color: var(--accent);
+  font-weight: 650;
 }
