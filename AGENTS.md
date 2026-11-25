@@ -21,7 +21,7 @@
 | `extension/lib/scanner.js` | OpenCode's working indicator. Classic script → `globalThis.CMScanner`. |
 | `extension/lib/extract.js` | Page text (Readability), YouTube transcript (opens/reads/closes the transcript panel), links, screenshots. In-page functions must be self-contained. |
 | `extension/lib/markdown.js` | Safe renderer: escapes everything, no raw HTML, **no images** (prevents exfiltration via image URLs). Classic script → `globalThis.CMMarkdown`. |
-| `extension/lib/net-rules.js` | DNR session rules for the extension's own requests (`tabIds: [-1]`): Origin `https://claude.ai` for claude.ai, no Origin elsewhere. |
+| `extension/lib/net-rules.js` | DNR session rules for the extension's own requests (`initiatorDomains: [own host]`, never `tabIds: [-1]`, which also hits sites' workers): Origin `https://claude.ai` for claude.ai, no Origin elsewhere. |
 | `extension/styles/theme.css` | Tokens + shared components. The docs site imports the same file. |
 | `bridge/chromind-bridge.mjs` | One-file, zero-dependency local server. Keep it that way (users download the single file). Speaks to Claude Code / Cursor CLIs and can SSH-tunnel to Hermes (`you@host` + password). |
 | `extension/lib/server-address.js` | Parses `you@host` / HTTP URLs for Hermes (shared with tests; Bridge has its own copy of the SSH parser). |

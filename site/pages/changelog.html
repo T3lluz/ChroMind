@@ -5,6 +5,11 @@ group: Reference
 order: 4
 blurb: What changed, newest first.
 -->
+<h2>0.3.2 · 2026-11-25</h2>
+<ul>
+  <li><strong>Fixed: ChroMind broke other sites' background requests.</strong> Its Origin header rule also matched requests from a site's own workers, which have no tab either. CORS servers then answered without permission to read the reply. On Twitch, 7TV lost its 7TV, BTTV and FFZ emote sets, so the emote menu and search showed only some emotes. The rule now matches only requests ChroMind starts itself.</li>
+</ul>
+
 <h2>0.3.1 · 2026-10-18</h2>
 <p>Things that should have just worked now do.</p>
 <ul>
